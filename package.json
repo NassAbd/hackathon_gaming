@@ -12,7 +12,12 @@
     "preview": "vite preview --host 127.0.0.1",
     "typecheck": "tsc --noEmit",
     "lint": "eslint .",
-    "test": "vitest run"
+    "test": "vitest run",
+    "eval:intent": "node scripts/eval-intent.mjs",
+    "build:itch": "node scripts/build-itch.mjs",
+    "build:api": "tsc --noEmit && vite build --config vite.api.config.ts",
+    "scan:secrets": "node scripts/scan-secrets.mjs",
+    "build:vercel": "tsc --noEmit && node scripts/check-vercel-esm.mjs && node scripts/build-vercel.mjs"
   },
   "dependencies": {
     "chess.js": "^1.4.0"

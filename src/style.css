@@ -63,3 +63,9 @@ ol { padding-left: 20px; } li { margin-bottom: 16px; padding-left: 7px; } li::ma
 footer { border-top: 1px solid #314039; color: #96ac9d; font-size: 9px; }
 @media (max-width: 1050px) { main { grid-template-columns: 1fr minmax(340px, 490px); gap: 30px; } aside { grid-column: 1 / -1; padding-top: 0; } aside h2 br { display: none; } .square > span { font-size: 40px; } }
 @media (max-width: 650px) { header, footer { margin: 0 5vw; padding: 20px 0; gap: 12px; } .mode { font-size: 8px; letter-spacing: 1px; } main { display: flex; flex-direction: column; padding: 25px 5vw; gap: 25px; } .intro { padding: 0; } h1 { font-size: 42px; margin: 12px 0; } h1 br { display: none; } .intro > p:last-child { margin-bottom: 0; } .game { width: 100%; padding: 16px; } .square > span { font-size: clamp(25px, 8vw, 42px); } aside { padding: 0; } footer { font-size: 8px; letter-spacing: 1px; } }
+#voice-trace { white-space: pre-wrap; overflow-wrap: anywhere; font-size: 10px; }
+#voice-status { font-size: 11px; }
+#voice-controls { flex-wrap: wrap; }
+
+.mic-diagnostics { margin: 0.7rem 0; font-size: 0.72rem; }
+.mic-diagnostics pre { white-space: pre-wrap; overflow-wrap: anywhere; max-height: 23rem; overflow: auto; margin: 0.3rem 0; }

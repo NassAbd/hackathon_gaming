@@ -1,14 +1,14 @@
 import { validateFen } from 'chess.js';
-import { isRecord } from '../src/services/gemini/contracts';
-import { resolveIntent } from './gemini';
-import type { GeminiOptions } from './gemini';
+import { isRecord } from '../src/services/gemini/contracts.js';
+import { resolveIntent } from './gemini.js';
+import type { GeminiOptions } from './gemini.js';
 
 const errorResponse = (status: number) => Response.json({ status: 'error', code: 'invalid_request' }, { status });
 
-export async function handleIntent(request: Request, options: GeminiOptions): Promise<Response> {
+export async function handleIntent(request: Request, options: GeminiOptions & { allowedOrigins?: readonly string[] }): Promise<Response> {
   if (request.method !== 'POST') return errorResponse(405);
   const origin = request.headers.get('origin');
-  if (origin && origin !== new URL(request.url).origin) return errorResponse(403);
+  if (origin && origin !== new URL(request.url).origin && !options.allowedOrigins?.includes(origin)) return errorResponse(403);
   if (!request.headers.get('content-type')?.startsWith('application/json')) return errorResponse(415);
   const text = await request.text();
   if (new TextEncoder().encode(text).length > 4096) return errorResponse(413);

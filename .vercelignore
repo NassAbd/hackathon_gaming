@@ -1,0 +1,11 @@
+.env
+.env.*
+*.local
+.git
+.vercel
+node_modules
+dist
+server-dist
+release
+coverage
+vercel-static

@@ -34,11 +34,18 @@ describe('Gemini adapter', () => {
     expect(context.sideToMove).toBe('white');
     expect(context.utterance).toBe(request.utterance);
     expect(context.legalMoves).toHaveLength(new Chess(request.fen).moves().length);
-    expect(context.legalMoves).toContainEqual(expect.objectContaining({ from: 'a1', to: 'a8', checkmate: true }));
+    expect(context.legalMoves).toContainEqual(expect.objectContaining({ from: 'a1', to: 'a8' }));
     expect(body.generationConfig.responseMimeType).toBe('application/json');
     expect(body.generationConfig.responseJsonSchema.required).toEqual(['status', 'from', 'to', 'promotion']);
     expect(body.generationConfig.responseJsonSchema.additionalProperties).toBe(false);
     expect(context).not.toHaveProperty('solution');
+    expect(context).not.toHaveProperty('objective');
+    for (const move of context.legalMoves) {
+      expect(move).not.toHaveProperty('checkmate');
+      expect(move).not.toHaveProperty('check');
+      expect(move).not.toHaveProperty('san');
+    }
+    expect(body.systemInstruction.parts[0].text).toContain('NOT a chess solver');
   });
   it('derives side to move and legal moves from the provided FEN', () => {
     const context = buildContext({ ...request, fen: new Chess().fen().replace(' w ', ' b ') });

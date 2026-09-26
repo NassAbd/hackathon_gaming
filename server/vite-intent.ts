@@ -2,12 +2,14 @@ import type { IncomingMessage, ServerResponse } from 'node:http';
 import type { Plugin } from 'vite';
 import { handleIntent } from './intent-api';
 import type { GeminiOptions } from './gemini';
+import { createGradiumToken } from './gradium';
 
 /** Local-only development/preview adapter. Never imported by browser code. */
-export function intentPlugin(options: GeminiOptions): Plugin {
+export function intentPlugin(options: GeminiOptions & { gradiumApiKey?: string }): Plugin {
   let active = 0;
   const middleware = async (req: IncomingMessage, res: ServerResponse, next: () => void) => {
-    if (req.url?.split('?')[0] !== '/api/intent') return next();
+    const path = req.url?.split('?')[0];
+    if (path !== '/api/intent' && path !== '/api/gradium-token') return next();
     const sendError = (status: number) => {
       res.writeHead(status, { 'content-type': 'application/json', 'cache-control': 'no-store' });
       res.end(JSON.stringify({ status: 'error', code: 'unavailable' }));
@@ -31,7 +33,15 @@ export function intentPlugin(options: GeminiOptions): Plugin {
         method: req.method, headers,
         ...(req.method === 'GET' || req.method === 'HEAD' ? {} : { body: Buffer.concat(chunks).toString('utf8') }),
       });
-      const response = await handleIntent(request, options);
+      let response: Response;
+      if (path === '/api/gradium-token') {
+        // Token vending is explicitly local-only until production authentication exists.
+        const local = ['127.0.0.1', '::1', '::ffff:127.0.0.1'].includes(req.socket.remoteAddress ?? '');
+        const origin = request.headers.get('origin');
+        if (!local || request.method !== 'POST' || origin !== new URL(request.url).origin) {
+          response = Response.json({ error: 'unavailable' }, { status: 403 });
+        } else response = Response.json(await createGradiumToken({ apiKey: options.gradiumApiKey }), { headers: { 'cache-control': 'no-store' } });
+      } else response = await handleIntent(request, options);
       res.writeHead(response.status, Object.fromEntries(response.headers));
       res.end(await response.text());
     } catch { if (!res.headersSent) sendError(400); else res.end(); }

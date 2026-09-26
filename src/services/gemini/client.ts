@@ -1,9 +1,10 @@
+import { apiUrl } from '../api-url';
 import { INTENT_MESSAGES, isRecord, parseProposal } from './contracts';
 import type { IntentError, IntentRequest, IntentResult } from './contracts';
 
 export async function requestIntent(request: IntentRequest, signal: AbortSignal, fetcher: typeof fetch = fetch): Promise<IntentResult> {
   try {
-    const response = await fetcher('./api/intent', {
+    const response = await fetcher(apiUrl('intent'), {
       method: 'POST', headers: { 'content-type': 'application/json' },
       body: JSON.stringify(request), signal: AbortSignal.any([signal, AbortSignal.timeout(4500)]),
     });

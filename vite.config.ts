@@ -6,6 +6,7 @@ export default defineConfig(({ mode }) => {
   const env = loadEnv(mode, process.cwd(), '');
   return {
     base: './',
-    plugins: [intentPlugin({ apiKey: env.GEMINI_API_KEY, model: env.GEMINI_MODEL })],
+    build: { assetsInlineLimit: 0 },
+    plugins: [intentPlugin({ apiKey: env.GEMINI_API_KEY, model: env.GEMINI_MODEL, gradiumApiKey: env.GRADIUM_API_KEY })],
   };
 });

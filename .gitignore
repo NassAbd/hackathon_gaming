@@ -5,3 +5,10 @@ dist/
 !.env.example
 *.local
 coverage/
+server-dist/
+release/
+
+.vercel/
+vercel-static/
+.vercel
+.env*
