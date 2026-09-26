@@ -9,3 +9,9 @@ server-dist
 release
 coverage
 vercel-static
+
+# Private diagnostics and non-API release media
+tmp
+evals
+src/assets/black-king
+assets/demo

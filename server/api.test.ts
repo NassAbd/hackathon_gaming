@@ -45,3 +45,18 @@ it('forwards validated intent using only server credentials', async () => {
   expect(await result.json()).toEqual({ status: 'resolved', candidate: { from: 'a1', to: 'a8' } });
   expect(fetcher.mock.calls[0][1]?.headers).toMatchObject({ 'x-goog-api-key': 'fixture-key' });
 });
+it.each(['/api/intent', '/api/gradium-token'])('rejects malformed, oversized and non-JSON input before providers: %s', async path => {
+  const fetcher = vi.fn<typeof fetch>();
+  for (const body of ['{', 'null', '[]']) expect((await handleApi(request(path, 'POST', origin, body), env, fetcher)).status).toBe(400);
+  expect((await handleApi(request(path, 'POST', origin, 'x'.repeat(4097)), env, fetcher)).status).toBe(413);
+  const nonJson = request(path); nonJson.headers.set('content-type', 'text/plain');
+  expect((await handleApi(nonJson, env, fetcher)).status).toBe(415);
+  expect(fetcher).not.toHaveBeenCalled();
+});
+it('rejects oversized utterances, extra keys, and invalid FEN before providers', async () => {
+  const fetcher = vi.fn<typeof fetch>();
+  for (const input of [{utterance:'x'.repeat(301),fen:PUZZLES[0].fen},{utterance:'rook',fen:'invalid'},{utterance:'rook',fen:PUZZLES[0].fen,secret:'extra'}]) {
+    expect((await handleApi(request('/api/intent','POST',origin,JSON.stringify(input)),env,fetcher)).status).toBe(400);
+  }
+  expect(fetcher).not.toHaveBeenCalled();
+});

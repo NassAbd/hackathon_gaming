@@ -1,3 +1,5 @@
+> Historical pre-deployment investigation. Superseded by [current technical documentation](TECHNICAL.md); deployment blockers and settings below describe that earlier snapshot.
+
 # First itch.io Draft readiness — 2026-09-26
 
 Deployment update: the API is now verified at https://soniccheck-api.vercel.app.

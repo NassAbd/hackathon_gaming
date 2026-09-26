@@ -11,7 +11,7 @@ export async function createGradiumToken(options: { apiKey?: string; fetcher?: t
     if (!response.ok) return { error: 'unavailable' };
     try {
       const data: unknown = await response.json();
-      if (!isRecord(data) || typeof data.token !== 'string' || !data.token || data.token.length > 8192
+      if (!isRecord(data) || typeof data.token !== 'string' || !data.token || data.token.length > 8192 || data.token.includes(options.apiKey)
         || typeof data.expires_at !== 'string' || !(Date.parse(data.expires_at) > Date.now())) return { error: 'unavailable' };
       return { token: data.token, expires_at: data.expires_at };
     } catch { return { error: 'unavailable' }; }

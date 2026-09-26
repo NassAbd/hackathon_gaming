@@ -19,3 +19,8 @@ it('sanitizes upstream/network errors and rejects malformed/expired tokens', asy
   }
   expect(await createGradiumToken({ apiKey: 'test-only', fetcher: async () => { throw new Error('private'); } })).toEqual({ error: 'network' });
 });
+it('rejects an upstream token field containing the permanent authentication key', async () => {
+  for (const token of ['test-only', 'prefix-test-only-suffix']) {
+    expect(await createGradiumToken({ apiKey: 'test-only', fetcher: async () => Response.json({ token, expires_at: new Date(Date.now() + 60000).toISOString() }) })).toEqual({ error: 'unavailable' });
+  }
+});

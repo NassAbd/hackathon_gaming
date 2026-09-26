@@ -10,8 +10,6 @@ release/
 
 .vercel/
 vercel-static/
-.vercel
-.env*
 .DS_Store
 
 # Retained private exact-stream recordings (abandoned STT evaluation)
@@ -21,5 +19,6 @@ evals/stt/audio/*
 # Private local TTS evaluation; never ship or commit
 /tmp/gradium-black-king/
 
-# Local voice integration pending redistribution approval
-/src/assets/black-king/*.wav
+
+# Private experimental STT outputs (retain locally)
+/evals/stt/results/
