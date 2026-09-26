@@ -20,3 +20,28 @@ it('effects fire once, leave scoring untouched and reset best combo on retry/pla
   state = submitMove(startRound(state, 0), PUZZLES[1].solution, 100); expect(ui.observe(state, 1).bestCombo).toBe(2);
   expect(ui.observe(createGame(), 2).bestCombo).toBe(0);
 });
+it('distinguishes capture/check without changing the committed board', () => {
+  const ui = new RunPresentation(); let state = startRound(createGame(), 0);
+  ui.observe(state, 1); state = submitMove(state, { from: 'a1', to: 'a7' }, 100);
+  const copy = structuredClone(state);
+  expect(ui.observe(state, 1)).toMatchObject({ captured: false, check: false });
+  expect(state).toEqual(copy);
+});
+it('keeps failed recognition visible only in the active round and gives the king no puzzle hints', async () => {
+  const { kingLine } = await import('./presentation');
+  expect(subtitleText('playing', false, false, 'partial', 'heard words', true)).toBe('heard words');
+  expect(subtitleText('ready', false, false, 'old', 'old', true)).toBe('');
+  expect(kingLine(createGame())).toBe('Five seconds. Show me.');
+  expect(kingLine(startRound(createGame(), 0))).toBe('');
+});
+it('recognizes a real capture and check using chess.js state, only once', () => {
+  const ui = new RunPresentation();
+  const ready = { ...createGame(), fen: PUZZLES[2].fen, puzzleIndex: 2 };
+  const playing = startRound(ready, 0); ui.observe(playing, 1);
+  const captured = submitMove(playing, { from: 'g5', to: 'h7' }, 100);
+  expect(ui.observe(captured, 1)).toMatchObject({ moved: true, captured: true, check: false });
+  expect(ui.observe(captured, 1)).toMatchObject({ moved: false, captured: false, check: false });
+  const queen = startRound({ ...createGame(), fen: PUZZLES[1].fen, puzzleIndex: 1 }, 0);
+  ui.observe(queen, 2);
+  expect(ui.observe(submitMove(queen, { from: 'g6', to: 'h6' }, 100), 2).check).toBe(true);
+});

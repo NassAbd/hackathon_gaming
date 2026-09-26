@@ -116,3 +116,24 @@ summary { cursor: pointer; font-size: 12px; }
 .board.concealed { display: grid; place-items: center; grid-template: 1fr / 1fr; background: #18251f; border: 1px solid #35463a; color: #d8f18a; font-size: 38px; font-weight: 800; letter-spacing: 4px; }
 #start-puzzle:disabled { opacity: .45; cursor: default; }
 #prepare { margin: 0 0 8px; }
+/* Shallow 2.5D depth without distorting the readable board. */
+body { background: radial-gradient(ellipse at 30% 25%, #23372c 0, #101916 65%); }
+.board { border: 3px solid #425442; box-shadow: 0 7px 0 #0a100d, 0 9px 0 #45523a, 0 22px 45px #0007; }
+.board.concealed { background: linear-gradient(145deg, #23392b, #121e18); border: 1px solid #516448; text-shadow: 0 3px 0 #0008; }
+.square.light { background: linear-gradient(150deg, #dce1c9, #c5cfb1); }
+.square.dark { background: linear-gradient(150deg, #88a28a, #6b886f); }
+.white-piece > span { text-shadow: 0 3px 0 #203428, 0 5px 4px #0005; }
+.black-piece > span { text-shadow: 0 1px 0 #bac8a166, 0 4px 3px #0005; }
+.square.last-move { background: #c6df73; box-shadow: inset 0 0 0 2px #edffab88; }
+.board[data-event='check'] .king-piece { box-shadow: inset 0 0 0 2px #f3c698; }
+.play-panel { background: linear-gradient(150deg, #213328, #15221b); box-shadow: inset 0 1px 0 #91ad6920, 0 18px 36px #0003; }
+.command-hint { font-size: 10px; color: #b8c7be; margin: 12px 0 0; text-align: center; }
+[data-urgent='true'] #timer { color: #ffd2a6; }
+[data-urgent='true'] #time-bar { background: #ffd2a6; }
+[data-combo='2'] #combo { color: #e4fa77; text-shadow: 0 0 12px #e4fa7744; }
+[data-combo='3'] #combo { color: #fff2ad; text-shadow: 0 0 18px #ffe38166; }
+.subtitle[data-speaker='opponent'] { border-left: 2px solid #bd9470; padding-left: 10px; }
+.subtitle[data-speaker='opponent'] #heard { font-weight: 500; color: #e6d7bf; }
+[data-phase='result'] #talk, [data-phase='result'] #talk-help, [data-phase='result'] .listening-level { display: none; }
+[data-phase='complete'] .command-hint { display: none; }
+@media (prefers-reduced-motion: reduce) { .board { transform: none; } }

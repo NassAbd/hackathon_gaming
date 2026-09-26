@@ -23,3 +23,15 @@ it('autoplay or unavailable audio cannot throw into gameplay', async () => {
   const sfx = new LocalSfx(() => false); expect(() => { sfx.unlock(); sfx.play('complete'); }).not.toThrow(); await Promise.resolve();
   vi.stubGlobal('AudioContext', undefined); expect(() => new LocalSfx(() => false).unlock()).not.toThrow();
 });
+it('interrupts queued tones on capture and mute, replacing rather than stacking cues', () => {
+  const stops: ReturnType<typeof vi.fn>[] = [];
+  vi.stubGlobal('AudioContext', class {
+    state = 'running'; currentTime = 0; destination = {}; resume = async () => {};
+    createOscillator() { const stop = vi.fn(); stops.push(stop); return { frequency: { value: 0 }, connect() {}, start() {}, stop, disconnect() {}, onended: null }; }
+    createGain() { return { gain: { setValueAtTime() {}, linearRampToValueAtTime() {}, exponentialRampToValueAtTime() {} }, connect() {}, disconnect() {} }; }
+  });
+  const sfx = new LocalSfx(() => false); sfx.unlock(); sfx.play('mate');
+  sfx.stop(); expect(stops.every(stop => stop.mock.calls.length === 2)).toBe(true);
+  sfx.play('ready'); sfx.muted = true;
+  expect(stops.every(stop => stop.mock.calls.length === 2)).toBe(true);
+});

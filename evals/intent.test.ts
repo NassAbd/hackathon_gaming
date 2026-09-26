@@ -32,3 +32,11 @@ describe('semantic evaluation contract (offline)', () => {
     expect(summarize([]).medianMs).toBeNull();
   });
 });
+it('independently checks adjacent queen ambiguity and the square immediately below the black king', () => {
+  const chess = new Chess(PUZZLES[1].fen);
+  const neighbors = chess.moves({ verbose: true }).filter(m => m.piece === 'q' && Math.max(Math.abs(m.to.charCodeAt(0) - 'h'.charCodeAt(0)), Math.abs(Number(m.to[1]) - 8)) === 1);
+  expect(neighbors.length).toBeGreaterThan(1);
+  expect(neighbors.filter(m => m.to === 'h7').map(m => ({ from: m.from, to: m.to }))).toEqual([{ from: 'g6', to: 'h7' }]);
+  expect(INTENT_CASES.filter(c => c.category === 'STT corruption')).toHaveLength(1);
+  expect(INTENT_CASES.some(c => c.category === 'not a command' && c.expected === null)).toBe(true);
+});

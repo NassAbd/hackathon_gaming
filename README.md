@@ -741,3 +741,47 @@ Draft QA (upload manually; never auto-deploy):
    no reveal movement/fade; timing and controls still work.
 
 Build: `VITE_API_BASE_URL=https://soniccheck-api.vercel.app/api npm run build:itch`.
+
+## Experience completion pass
+
+Current gameplay retains hidden READY → Prepare → Start/reveal + five-second
+clock → hold/speak/release. Player copy encourages “Move…” / “Put…” without imposing
+a grammar or notation. Provider credits now live in Debug. The board has shallow
+CSS depth, an immediate 180 ms reveal and urgent clock color; none delays gameplay.
+Reduced motion removes animation. No external visual/audio assets were added.
+
+A fixed **BLACK KING** subtitle appears in the reserved board gutter before a
+round and after results. It gives no puzzle hints. Player speech takes priority
+during capture/processing; failed recognition stays visible while the player can
+try again, so they can see what was heard. Legal non-mates explicitly say the move
+was understood. Ready/retry/next clears old player text.
+
+Local Web Audio tones distinguish ready/start, lock, move, capture, check,
+checkmate/combo, timeout, next and run completion. Event metadata is read from
+chess.js positions after deterministic execution. Cues replace each other rather
+than stack; mute and capture start immediately stop queued/sounding tones.
+Input feedback remains visual when a press tone is stopped to protect speech.
+
+**Gradium TTS was deliberately skipped.** The official
+[TTS WebSocket protocol](https://docs.gradium.ai/api-reference/endpoint/tts-websocket)
+requires synthesis setup and streamed audio handling. Adding voice selection,
+playback/cancellation and cache validation expands the release surface; this pass
+keeps the character text-only with zero added network calls or credentials.
+
+The controlled intent-tolerance candidate passed once but failed confirmation with
+two wrong legal moves. The original production resolver is retained. See
+[56-case evaluation results](evals/README.md); a clean transcript such as queen
+“next to the king” still abstains when multiple legal moves match. No semantic or
+API redeployment is required for this frontend release.
+
+The previous working ZIP is preserved at
+`release/backups/soniccheck-before-experience-fc84f47.zip`.
+Build the new ZIP with:
+`VITE_API_BASE_URL=https://soniccheck-api.vercel.app/api npm run build:itch`.
+
+Draft QA: test Prepare → hidden READY → Start; think, hold/speak/release before zero;
+check subtitle/understanding/mate and Retry rollback. Try an unresolved phrase,
+a legal non-mate, and a late release. Complete all three, check hidden Next,
+results and Play Again. At 1280×720 and 1100×620 test mute, reduced motion and Debug
+typed/coordinate/WAV/session exports. Real headset/iframe rehearsal is required;
+local mocked speech checks do not establish STT quality.

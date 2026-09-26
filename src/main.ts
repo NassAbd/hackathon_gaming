@@ -1,5 +1,5 @@
 import { roundView } from './ui/round-view';
-import { RunPresentation, subtitleText, failureTitle, motionDuration } from './ui/presentation';
+import { RunPresentation, subtitleText, failureTitle, motionDuration, kingLine } from './ui/presentation';
 import { LocalSfx } from './ui/sfx';
 import { debugAudio } from './services/gradium/debug-audio';
 import { retryPuzzle } from './ui/retry';
@@ -27,7 +27,7 @@ root.innerHTML = `
   <main class="arena">
     <section class="board-stage" aria-label="Chess puzzle">
       <div class="puzzle-heading"><div><p class="eyebrow" id="progress"></p><h2 id="title"></h2></div><span class="side">White to move · Mate in one</span></div>
-      <div id="board" class="board" role="group" aria-label="Chessboard, white at bottom"></div><div id="subtitle" class="subtitle" data-speaker="player" aria-live="polite" aria-atomic="true"><span class="speaker">YOU SAID</span><span id="heard"></span></div>
+      <div id="board" class="board" role="group" aria-label="Chessboard, white at bottom"></div><div id="subtitle" class="subtitle" data-speaker="player" aria-live="polite" aria-atomic="true"><span id="speaker" class="speaker">YOU</span><span id="heard"></span></div>
     </section>
     <section class="play-panel" aria-label="Voice controls and results">
       <div class="stats"><div><span>SCORE</span><strong id="score">0</strong></div><div><span>COMBO</span><strong id="combo">×0</strong></div><div><span>TIME LEFT</span><strong id="timer" role="timer">5.0s</strong></div></div>
@@ -35,13 +35,13 @@ root.innerHTML = `
       <div class="player-feedback" aria-live="polite"><p class="eyebrow" id="player-eyebrow">FIND THE MATE</p><div id="result-san" aria-hidden="true"></div><h1 id="player-state">READY</h1><p id="feedback"></p></div>
       <div id="score-gain" aria-hidden="true"></div><section id="run-summary" hidden aria-label="Final results"><div><span>FINAL SCORE</span><strong id="final-score"></strong></div><div><span>PUZZLES SOLVED</span><strong id="final-solved"></strong></div><div><span>BEST COMBO</span><strong id="best-combo"></strong></div></section><div id="listening-level" class="listening-level" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i></div>
       <button id="prepare" type="button" class="primary">PREPARE MIC</button><button id="start-puzzle" type="button" class="talk">START PUZZLE</button><button id="talk" type="button" class="talk" aria-describedby="talk-help">HOLD TO SPEAK</button>
-      <p id="talk-help">The clock starts when the board appears. Hold. Say your move. Release.</p>
+      <p id="talk-help">Hold. Say your move. Release.</p>
       <div class="result-actions"><button id="retry" class="primary" type="button" hidden>Retry puzzle ↻</button><button id="action" class="primary" type="button">Next puzzle →</button></div>
-      <p class="partners">Voice by Gradium · Intent by Gemini · Rules by chess.js</p>
+      <p class="command-hint">Try “Move…” or “Put…” — no notation needed.</p>
     </section>
   </main>
   <section id="debug-panel" class="debug-panel" hidden aria-label="Development controls"><div class="debug-heading"><strong>Development controls</strong><button id="debug-close" type="button">Close</button></div>
-      <div id="voice-controls" class="input-row"><button id="microphone" type="button">Enable microphone</button><button id="voice-send" type="button" disabled>Send speech</button><button id="voice-cancel" type="button" disabled>Cancel voice</button></div>
+      <p class="partners">Voice by Gradium · Intent by Gemini · Rules by chess.js</p><div id="voice-controls" class="input-row"><button id="microphone" type="button">Enable microphone</button><button id="voice-send" type="button" disabled>Send speech</button><button id="voice-cancel" type="button" disabled>Cancel voice</button></div>
       <p id="voice-status" role="status" aria-live="polite">Enable before Start. Speak during the round, then Send speech before the deadline.</p>
       <section class="mic-diagnostics" aria-label="Microphone development diagnostics"><strong>Microphone diagnostics · development</strong><pre id="mic-diagnostics"></pre></section>
       <details><summary>Voice latency telemetry</summary><pre id="voice-trace">No voice attempt yet. Timestamps use the browser monotonic clock.</pre></details>
@@ -146,6 +146,7 @@ const talk = new PushToTalk({
     });
   },
   start: capture => {
+    sfx.stop();
     voiceSession.listen(capture);
   },
   commit: async () => { const round = roundIndex; heard = microphoneDiagnostics.transcript || heard; await voiceSession.commit(); if (round === roundIndex && state.phase === 'playing') playerError = 'Didn’t catch that — try again'; },
@@ -191,6 +192,7 @@ function renderBoard(): void {
       button.type = 'button';
       button.dataset.square = square;
       button.className = `square ${(rowIndex + col) % 2 ? 'dark' : 'light'} ${piece?.color === 'w' ? 'white-piece' : 'black-piece'}`;
+      button.classList.toggle('king-piece', piece?.type === 'k' && piece.color === 'b');
       button.classList.toggle('selected', square === selected);
       button.classList.toggle('last-move', state.lastMove?.from === square || state.lastMove?.to === square);
       button.disabled = !debugOpen || state.phase !== 'playing';
@@ -225,6 +227,7 @@ function renderTimer(): void {
   const remaining = voiceSession.remainingMs ?? (state.phase === 'playing' && state.deadline !== null
     ? Math.max(0, state.deadline - performance.now()) : state.phase === 'ready' ? ROUND_MS : 0);
   element('timer').textContent = `${(remaining / 1000).toFixed(1)}s`;
+  root!.dataset.urgent = String(state.phase === 'playing' && state.deadline !== null && remaining <= 2000);
   element('time-bar').style.width = `${remaining / ROUND_MS * 100}%`;
 }
 
@@ -235,12 +238,13 @@ function render(): void {
     element('intent-status').textContent = 'Interpretation cancelled: the round ended. No pending AI move will be applied.';
   }
   element('score').textContent = String(state.score).padStart(3, '0');
+  root!.dataset.combo = String(Math.min(3, state.combo));
   const nextCombo = `×${state.combo}`;
   element('combo').textContent = nextCombo;
   element('progress').textContent = state.phase === 'complete' ? 'RUN COMPLETE' : `PUZZLE ${state.puzzleIndex + 1} / ${PUZZLES.length}`;
   element('title').textContent = roundView(state).title;
   const processing = voiceSession.pending || talk.phase === 'processing';
-  const status = state.phase === 'complete' ? 'RUN COMPLETE' : state.outcome === 'mate' ? 'CHECKMATE!' : state.outcome === 'miss' ? 'LEGAL MOVE — NOT MATE' : state.outcome === 'timeout' ? failureTitle(true) : microphoneSetup ? 'PREPARING MIC…' : state.phase === 'ready' && armedCapture ? 'MIC READY' : talk.phase === 'preparing' ? 'GETTING READY…' : voiceSession.listening ? 'LISTENING…' : processing ? 'UNDERSTANDING…' : (playerError.startsWith('Didn’t catch') ? failureTitle(false) : playerError) || (state.phase === 'ready' ? 'READY' : 'HOLD TO SPEAK');
+  const status = state.phase === 'complete' ? 'RUN COMPLETE' : state.outcome === 'mate' ? 'CHECKMATE!' : state.outcome === 'miss' ? 'NOT MATE' : state.outcome === 'timeout' ? failureTitle(true) : microphoneSetup ? 'PREPARING MIC…' : state.phase === 'ready' && armedCapture ? 'MIC READY' : talk.phase === 'preparing' ? 'GETTING READY…' : voiceSession.listening ? 'LISTENING…' : processing ? 'UNDERSTANDING…' : (playerError.startsWith('Didn’t catch') ? failureTitle(false) : playerError) || (state.phase === 'ready' ? 'READY' : 'HOLD TO SPEAK');
   const previousStatus = element('player-state').textContent;
   element('player-state').textContent = status;
   root!.dataset.phase = state.phase;
@@ -248,9 +252,10 @@ function render(): void {
   if (previousStatus !== status) {
     animate(element('player-state'), [{ opacity: 0.5, transform: 'translateY(5px)' }, { opacity: 1, transform: 'translateY(0)' }], 160);
     if (talk.phase === 'preparing') sfx.play('press');
+    else if (status === 'MIC READY') sfx.play('ready');
     else if (status === failureTitle(false)) sfx.play('fail');
   }
-  element('feedback').textContent = state.outcome === 'timeout' && state.phase === 'result' ? 'Release your command before the clock reaches zero.' : state.phase === 'complete' ? 'Another run. Another perfect streak?' : state.phase === 'result' ? state.feedback : talk.phase === 'preparing' ? 'Keep holding. Allow your microphone if asked.' : voiceSession.listening ? 'Describe your move. Release to send.' : processing ? 'Finding your move. Your time is saved.' : playerError ? 'Try again. Name the piece and its destination.' : state.phase === 'ready' ? 'The clock starts when the board appears.' : 'Think fast. Release before zero.';
+  element('feedback').textContent = state.outcome === 'timeout' && state.phase === 'result' ? 'Release your command before the clock reaches zero.' : state.phase === 'complete' ? 'Another run. Another perfect streak?' : state.phase === 'result' ? (state.outcome === 'miss' ? 'Move understood. The king is still standing.' : state.feedback) : talk.phase === 'preparing' ? 'Keep holding. Allow your microphone if asked.' : voiceSession.listening ? 'Describe your move. Release to send.' : processing ? 'Finding your move. Your time is saved.' : playerError ? 'Try again. Name the piece and its destination.' : state.phase === 'ready' ? 'The clock starts when the board appears.' : 'Think fast. Release before zero.';
   renderSubtitle();
   const talkButton = element<HTMLButtonElement>('talk');
   element('prepare').hidden = state.phase !== 'ready' || armedCapture !== null;
@@ -282,7 +287,7 @@ function render(): void {
   renderBoard();
   renderTimer();
   const effects = presentation.observe(state, runIndex);
-  element('player-eyebrow').textContent = state.phase === 'complete' ? 'YOUR RUN' : 'FIND THE MATE';
+  element('player-eyebrow').textContent = state.phase === 'complete' ? 'YOUR RUN' : state.phase === 'playing' && !processing && !voiceSession.listening ? 'GO · FIND THE MATE' : 'FIND THE MATE';
   element('run-summary').hidden = state.phase !== 'complete';
   element('final-score').textContent = String(state.score);
   element('final-solved').textContent = `${state.solved}/${PUZZLES.length}`;
@@ -298,7 +303,12 @@ function render(): void {
     }
   }
   if (effects.result) {
-    sfx.play(state.outcome === 'mate' ? 'mate' : 'fail');
+    sfx.play(state.outcome === 'mate' ? state.combo > 1 ? 'combo' : 'mate' : state.outcome === 'timeout' ? 'timeout' : effects.check ? 'check' : effects.captured ? 'capture' : 'move');
+    board.dataset.event = effects.check ? 'check' : effects.captured ? 'capture' : 'move';
+    if (effects.captured && state.lastMove) {
+      const target = board.querySelector<HTMLElement>(`[data-square="${state.lastMove.to}"]`);
+      if (target) animate(target, [{ boxShadow: 'inset 0 0 0 6px #f3c698' }, { boxShadow: 'inset 0 0 0 0 transparent' }], 240);
+    }
     if (state.outcome === 'mate') {
       animate(board, [{ transform: 'translateX(0)' }, { transform: 'translateX(-2px)' }, { transform: 'translateX(2px)' }, { transform: 'translateX(0)' }], 180);
       animate(element('player-state'), [{ transform: 'scale(0.92)' }, { transform: 'scale(1.06)', offset: 0.6 }, { transform: 'scale(1)' }], 240);
@@ -309,7 +319,7 @@ function render(): void {
     element('score-gain').textContent = `+${effects.gain}`;
     animate(element('score-gain'), [{ opacity: 1, transform: 'translateY(8px)' }, { opacity: 0, transform: 'translateY(-10px)' }], 700);
   }
-  if (effects.transition) { board.getAnimations().forEach(a => a.cancel()); animate(board, [{ opacity: 0.55 }, { opacity: 1 }], 150); }
+  if (effects.transition) { delete board.dataset.event; sfx.play('next'); board.getAnimations().forEach(a => a.cancel()); animate(board, [{ opacity: 0.55 }, { opacity: 1 }], 150); }
   if (state.phase === 'ready') element('score-gain').textContent = '';
   if (effects.complete) sfx.play('complete');
 }
@@ -320,9 +330,12 @@ function animate(target: HTMLElement, frames: Keyframe[], duration: number): voi
 let lockedAttempt: number | null = null;
 function renderSubtitle(): void {
   const text = subtitleText(state.phase, voiceSession.listening, voiceSession.pending,
-    microphoneDiagnostics.transcript, heard);
-  element('subtitle').dataset.visible = String(!!text);
-  const subtitle = text ? `“${text}”` : '';
+    microphoneDiagnostics.transcript, heard, playerError.startsWith('Didn’t catch'));
+  const character = text ? '' : kingLine(state);
+  element('subtitle').dataset.speaker = character ? 'opponent' : 'player';
+  element('speaker').textContent = character ? '♚ BLACK KING' : 'YOU';
+  element('subtitle').dataset.visible = String(!!(text || character));
+  const subtitle = text || character ? `“${text || character}”` : '';
   if (element('heard').textContent !== subtitle) element('heard').textContent = subtitle;
   element('listening-level').style.setProperty('--level', String(Math.min(1, microphoneDiagnostics.rms * 12)));
   if (voiceSession.pending && !microphoneDiagnostics.recording && activeAttempt !== null && lockedAttempt !== activeAttempt) {
@@ -343,7 +356,7 @@ element('microphone').addEventListener('click', async () => {
     });
     if (microphoneSetup !== setup) { capture.cancel(); return; }
     microphoneSetup = null;
-    if (state.phase === 'playing') voiceSession.listen(capture);
+    if (state.phase === 'playing') { sfx.stop(); voiceSession.listen(capture); }
     else if (state.phase === 'ready') { armedCapture = capture; preparedAt = performance.now(); microphoneDiagnostics.event('Capture retained in armedCapture; phase=ready'); element('voice-status').textContent = 'Microphone ready. Start the round, speak, then Send speech.'; }
     else capture.cancel();
   } catch (error) {
@@ -462,8 +475,9 @@ function revealPuzzle(development = false): void {
   state = startRound(state, performance.now());
   playerError = ''; heard = '';
   render();
-  animate(board, [{ opacity: 0.6 }, { opacity: 1 }], 120);
-  sfx.play('press');
+  animate(board, [{ opacity: 0.6, transform: 'perspective(900px) rotateX(5deg) scale(.97)' }, { opacity: 1, transform: 'perspective(900px) rotateX(0) scale(1)' }], 180);
+  animate(element('timer'), [{ transform: 'scale(1.15)' }, { transform: 'scale(1)' }], 180);
+  sfx.play('start');
 }
 element('start-puzzle').addEventListener('click', () => revealPuzzle());
 element('debug-start').addEventListener('click', () => revealPuzzle(true));

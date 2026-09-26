@@ -1,6 +1,7 @@
+import { Chess } from 'chess.js';
 import type { GameState } from '../contracts';
-export function subtitleText(phase: GameState['phase'], listening: boolean, pending: boolean, partial: string, final: string): string {
-  if (phase !== 'playing' || (!listening && !pending)) return '';
+export function subtitleText(phase: GameState['phase'], listening: boolean, pending: boolean, partial: string, final: string, failed = false): string {
+  if (phase !== 'playing' || (!listening && !pending && !failed)) return '';
   return final || partial;
 }
 export function failureTitle(timeout: boolean): string { return timeout ? 'TIME’S UP' : 'DIDN’T CATCH THAT'; }
@@ -19,7 +20,17 @@ export class RunPresentation {
     const result = state.phase === 'result' && before?.phase !== 'result';
     const complete = state.phase === 'complete' && before?.phase !== 'complete';
     const transition = !!before && state.phase === 'ready' && (before.phase !== 'ready' || before.puzzleIndex !== state.puzzleIndex);
+    const captured = moved && before && state.lastMove ? new Chess(before.fen).board().flat().some(piece => piece?.square === state.lastMove?.to) : false;
+    const check = moved && new Chess(state.fen).isCheck();
     this.previous = state;
-    return { moved, result, complete, transition, bestCombo: Math.max(0, ...this.combos.values()), gain: moved && before ? state.score - before.score : 0 };
+    return { moved, captured, check, result, complete, transition, bestCombo: Math.max(0, ...this.combos.values()), gain: moved && before ? state.score - before.score : 0 };
   }
+}
+
+/** Fixed presentation only, never a puzzle hint or generated dialogue. */
+export function kingLine(state: GameState): string {
+  if (state.phase === 'ready') return 'Five seconds. Show me.';
+  if (state.phase === 'complete') return state.solved === 3 ? 'Okay. You win.' : 'Another round?';
+  if (state.phase === 'result') return state.outcome === 'mate' ? 'Well played.' : state.outcome === 'miss' ? 'Still standing.' : 'Time waits for no king.';
+  return '';
 }
