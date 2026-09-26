@@ -1,3 +1,5 @@
+import { RunPresentation, subtitleText, failureTitle, motionDuration } from './ui/presentation';
+import { LocalSfx } from './ui/sfx';
 import { debugAudio } from './services/gradium/debug-audio';
 import { retryPuzzle } from './ui/retry';
 import { SessionLog } from './ui/session-log';
@@ -20,19 +22,19 @@ const root = document.querySelector<HTMLDivElement>('#app');
 if (!root) throw new Error('Missing app root');
 const debug = new URLSearchParams(location.search).get('debug') === '1';
 root.innerHTML = `
-  <header><a class="brand" href="./">◉ SonicCheck<span>VOICE CHESS · ENGLISH</span></a><span class="mode">ONE MOVE. FIVE SECONDS.</span><button id="debug-toggle" type="button" aria-expanded="false">Debug</button></header>
+  <header><a class="brand" href="./">◉ SonicCheck<span>VOICE CHESS · ENGLISH</span></a><span class="mode">ONE MOVE. FIVE SECONDS.</span><button id="sound-toggle" type="button" aria-pressed="false" aria-label="Mute sound effects">Sound on</button><button id="debug-toggle" type="button" aria-expanded="false">Debug</button></header>
   <main class="arena">
     <section class="board-stage" aria-label="Chess puzzle">
       <div class="puzzle-heading"><div><p class="eyebrow" id="progress"></p><h2 id="title"></h2></div><span class="side">White to move · Mate in one</span></div>
-      <div id="board" class="board" role="group" aria-label="Chessboard, white at bottom"></div>
+      <div id="board" class="board" role="group" aria-label="Chessboard, white at bottom"></div><div id="subtitle" class="subtitle" data-speaker="player" aria-live="polite" aria-atomic="true"><span class="speaker">YOU SAID</span><span id="heard"></span></div>
     </section>
     <section class="play-panel" aria-label="Voice controls and results">
       <div class="stats"><div><span>SCORE</span><strong id="score">0</strong></div><div><span>COMBO</span><strong id="combo">×0</strong></div><div><span>TIME LEFT</span><strong id="timer" role="timer">5.0s</strong></div></div>
       <div class="time-track"><div id="time-bar"></div></div>
-      <div class="player-feedback" aria-live="polite"><p class="eyebrow">FIND YOUR FINISH</p><h1 id="player-state">READY</h1><p id="feedback"></p></div>
-      <div class="heard"><span class="eyebrow">HEARD</span><p id="heard">Your words will appear here.</p></div>
+      <div class="player-feedback" aria-live="polite"><p class="eyebrow" id="player-eyebrow">FIND THE MATE</p><div id="result-san" aria-hidden="true"></div><h1 id="player-state">READY</h1><p id="feedback"></p></div>
+      <div id="score-gain" aria-hidden="true"></div><section id="run-summary" hidden aria-label="Final results"><div><span>FINAL SCORE</span><strong id="final-score"></strong></div><div><span>PUZZLES SOLVED</span><strong id="final-solved"></strong></div><div><span>BEST COMBO</span><strong id="best-combo"></strong></div></section><div id="listening-level" class="listening-level" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i></div>
       <button id="talk" type="button" class="talk" aria-describedby="talk-help">HOLD TO SPEAK</button>
-      <p id="talk-help">Hold, describe your move, then release. Speak when LISTENING appears.</p>
+      <p id="talk-help">Hold. Say your move. Release.</p>
       <div class="result-actions"><button id="retry" class="primary" type="button" hidden>Retry puzzle ↻</button><button id="action" class="primary" type="button">Next puzzle →</button></div>
       <p class="partners">Voice by Gradium · Intent by Gemini · Rules by chess.js</p>
     </section>
@@ -61,6 +63,8 @@ const intentInput = element<HTMLInputElement>('intent');
 const intentSession = new IntentSession();
 const names = { k: 'king', q: 'queen', r: 'rook', b: 'bishop', n: 'knight', p: 'pawn' };
 const glyphs = { k: '♚', q: '♛', r: '♜', b: '♝', n: '♞', p: '♟' };
+const presentation = new RunPresentation();
+const sfx = new LocalSfx(() => microphoneDiagnostics.recording);
 let state = createGame();
 let puzzleInitial = state;
 let runIndex = 1, roundIndex = 1, retryIndex = 0;
@@ -162,7 +166,11 @@ function cancelVoice(reason = 'fallback or user cancellation'): void {
   voiceSession.cancel();
 }
 
+let boardKey = '';
 function renderBoard(): void {
+  const key = `${state.fen}:${state.phase}:${selected}:${debugOpen}`;
+  if (key === boardKey) return;
+  boardKey = key;
   const focusedSquare = document.activeElement instanceof HTMLButtonElement ? document.activeElement.dataset.square : undefined;
   board.replaceChildren();
   const chess = new Chess(state.fen);
@@ -219,20 +227,22 @@ function render(): void {
   }
   element('score').textContent = String(state.score).padStart(3, '0');
   const nextCombo = `×${state.combo}`;
-  if (element('combo').textContent !== nextCombo && state.combo > 0 && !matchMedia('(prefers-reduced-motion: reduce)').matches) {
-    element('combo').animate?.([{ transform: 'scale(1.2)', color: '#d8f18a' }, { transform: 'scale(1)' }], { duration: 180 });
-  }
   element('combo').textContent = nextCombo;
   element('progress').textContent = state.phase === 'complete' ? 'RUN COMPLETE' : `PUZZLE ${state.puzzleIndex + 1} / ${PUZZLES.length}`;
   element('title').textContent = state.phase === 'complete' ? `${state.solved} of ${PUZZLES.length} solved` : PUZZLES[state.puzzleIndex].title;
   const processing = voiceSession.pending || talk.phase === 'processing';
-  const status = state.phase === 'complete' ? 'RUN COMPLETE' : state.outcome === 'mate' ? 'CHECKMATE!' : state.outcome === 'miss' ? 'LEGAL MOVE — NOT MATE' : state.outcome === 'timeout' ? 'TIME’S UP' : talk.phase === 'preparing' ? 'GETTING READY…' : voiceSession.listening ? 'LISTENING…' : processing ? 'UNDERSTANDING…' : playerError || (state.phase === 'ready' ? 'READY' : 'HOLD TO SPEAK');
+  const status = state.phase === 'complete' ? 'RUN COMPLETE' : state.outcome === 'mate' ? 'CHECKMATE!' : state.outcome === 'miss' ? 'LEGAL MOVE — NOT MATE' : state.outcome === 'timeout' ? failureTitle(true) : talk.phase === 'preparing' ? 'GETTING READY…' : voiceSession.listening ? 'LISTENING…' : processing ? 'UNDERSTANDING…' : (playerError.startsWith('Didn’t catch') ? failureTitle(false) : playerError) || (state.phase === 'ready' ? 'READY' : 'HOLD TO SPEAK');
   const previousStatus = element('player-state').textContent;
   element('player-state').textContent = status;
+  root!.dataset.phase = state.phase;
   root!.dataset.mood = state.outcome ?? (voiceSession.listening ? 'listening' : processing ? 'processing' : playerError ? 'retry' : 'ready');
-  if (previousStatus !== status) element('player-state').animate?.([{ opacity: 0.4, transform: 'translateY(5px)' }, { opacity: 1, transform: 'translateY(0)' }], { duration: matchMedia('(prefers-reduced-motion: reduce)').matches ? 0 : 160 });
-  element('feedback').textContent = state.phase === 'result' || state.phase === 'complete' ? state.feedback : talk.phase === 'preparing' ? 'Keep holding. Allow your microphone if asked.' : voiceSession.listening ? 'Describe your move. Release to send.' : processing ? 'Finding your move. Your time is saved.' : playerError ? 'Hold again while there’s time. Be specific about the destination.' : 'Find checkmate in one. No chess notation needed.';
-  element('heard').textContent = heard ? `“${heard}”` : 'Your words will appear here.';
+  if (previousStatus !== status) {
+    animate(element('player-state'), [{ opacity: 0.5, transform: 'translateY(5px)' }, { opacity: 1, transform: 'translateY(0)' }], 160);
+    if (talk.phase === 'preparing') sfx.play('press');
+    else if (status === failureTitle(false)) sfx.play('fail');
+  }
+  element('feedback').textContent = state.outcome === 'timeout' && state.phase === 'result' ? 'Release your command before the clock reaches zero.' : state.phase === 'complete' ? 'Another run. Another perfect streak?' : state.phase === 'result' ? state.feedback : talk.phase === 'preparing' ? 'Keep holding. Allow your microphone if asked.' : voiceSession.listening ? 'Describe your move. Release to send.' : processing ? 'Finding your move. Your time is saved.' : playerError ? 'Try again. Name the piece and its destination.' : 'One move. Five seconds.';
+  renderSubtitle();
   const talkButton = element<HTMLButtonElement>('talk');
   talkButton.disabled = state.phase === 'result' || state.phase === 'complete' || processing || intentSession.pending || microphoneSetup !== null || armedCapture !== null;
   talkButton.textContent = talk.phase === 'preparing' ? 'KEEP HOLDING…' : voiceSession.listening ? 'RELEASE TO SEND' : processing ? 'UNDERSTANDING…' : 'HOLD TO SPEAK';
@@ -256,7 +266,53 @@ function render(): void {
   action.textContent = state.phase === 'ready' ? 'Start round →' : state.phase === 'complete' ? 'Play again ↻' : state.puzzleIndex === PUZZLES.length - 1 ? 'See results →' : 'Next puzzle →';
   renderBoard();
   renderTimer();
-
+  const effects = presentation.observe(state, runIndex);
+  element('player-eyebrow').textContent = state.phase === 'complete' ? 'YOUR RUN' : 'FIND THE MATE';
+  element('run-summary').hidden = state.phase !== 'complete';
+  element('final-score').textContent = String(state.score);
+  element('final-solved').textContent = `${state.solved}/${PUZZLES.length}`;
+  element('best-combo').textContent = `×${effects.bestCombo}`;
+  element('result-san').textContent = state.phase === 'result' && state.lastMove ? state.feedback.split(' ')[state.outcome === 'mate' ? 1 : 0] : '';
+  if (effects.moved && state.lastMove) {
+    const from = board.querySelector<HTMLElement>(`[data-square="${state.lastMove.from}"]`);
+    const to = board.querySelector<HTMLElement>(`[data-square="${state.lastMove.to}"]`);
+    const glyph = to?.querySelector<HTMLElement>('span');
+    if (from && to && glyph) {
+      const a = from.getBoundingClientRect(), b = to.getBoundingClientRect();
+      animate(glyph, [{ transform: `translate(${a.x - b.x}px, ${a.y - b.y}px)` }, { transform: 'translate(0, 0)' }], 170);
+    }
+  }
+  if (effects.result) {
+    sfx.play(state.outcome === 'mate' ? 'mate' : 'fail');
+    if (state.outcome === 'mate') {
+      animate(board, [{ transform: 'translateX(0)' }, { transform: 'translateX(-2px)' }, { transform: 'translateX(2px)' }, { transform: 'translateX(0)' }], 180);
+      animate(element('player-state'), [{ transform: 'scale(0.92)' }, { transform: 'scale(1.06)', offset: 0.6 }, { transform: 'scale(1)' }], 240);
+      for (const id of ['score', 'combo']) animate(element(id), [{ transform: 'scale(1.2)', color: '#e4fa77' }, { transform: 'scale(1)' }], 220);
+    }
+  }
+  if (effects.gain > 0) {
+    element('score-gain').textContent = `+${effects.gain}`;
+    animate(element('score-gain'), [{ opacity: 1, transform: 'translateY(8px)' }, { opacity: 0, transform: 'translateY(-10px)' }], 700);
+  }
+  if (effects.transition) { board.getAnimations().forEach(a => a.cancel()); animate(board, [{ opacity: 0.55 }, { opacity: 1 }], 150); }
+  if (state.phase === 'ready') element('score-gain').textContent = '';
+  if (effects.complete) sfx.play('complete');
+}
+function animate(target: HTMLElement, frames: Keyframe[], duration: number): void {
+  const ms = motionDuration(matchMedia('(prefers-reduced-motion: reduce)').matches, duration);
+  if (ms) target.animate?.(frames, { duration: ms, easing: 'ease-out' });
+}
+let lockedAttempt: number | null = null;
+function renderSubtitle(): void {
+  const text = subtitleText(state.phase, voiceSession.listening, voiceSession.pending,
+    microphoneDiagnostics.transcript, heard);
+  element('subtitle').dataset.visible = String(!!text);
+  const subtitle = text ? `“${text}”` : '';
+  if (element('heard').textContent !== subtitle) element('heard').textContent = subtitle;
+  element('listening-level').style.setProperty('--level', String(Math.min(1, microphoneDiagnostics.rms * 12)));
+  if (voiceSession.pending && !microphoneDiagnostics.recording && activeAttempt !== null && lockedAttempt !== activeAttempt) {
+    lockedAttempt = activeAttempt; sfx.play('lock');
+  }
 }
 
 element('microphone').addEventListener('click', async () => {
@@ -377,6 +433,15 @@ element('download-log').addEventListener('click', () => {
   const link = document.createElement('a'); link.href = url; link.download = 'soniccheck-session.json';
   link.click(); setTimeout(() => URL.revokeObjectURL(url), 1000);
 });
+// One global unlock listener per input type; retries never register new handlers.
+document.addEventListener('pointerdown', () => sfx.unlock(), { capture: true });
+document.addEventListener('keydown', () => sfx.unlock(), { capture: true });
+element('sound-toggle').addEventListener('click', () => {
+  sfx.muted = !sfx.muted;
+  element('sound-toggle').textContent = sfx.muted ? 'Sound off' : 'Sound on';
+  element('sound-toggle').setAttribute('aria-pressed', String(sfx.muted));
+  element('sound-toggle').setAttribute('aria-label', sfx.muted ? 'Enable sound effects' : 'Mute sound effects');
+});
 element('debug-start').addEventListener('click', () => action.click());
 element('debug-toggle').addEventListener('click', () => { debugOpen = !debugOpen; render(); });
 element('debug-close').addEventListener('click', () => { debugOpen = false; render(); });
@@ -412,7 +477,7 @@ talkButton.addEventListener('keyup', event => {
 talkButton.addEventListener('blur', () => { if (keyboardHeld) cancelHold(); });
 window.addEventListener('blur', cancelHold);
 document.addEventListener('visibilitychange', () => { if (document.hidden) cancelHold(); });
-setInterval(() => { element('mic-diagnostics').textContent = microphoneDiagnostics.display(); }, 250);
+setInterval(() => { element('mic-diagnostics').textContent = microphoneDiagnostics.display(); renderSubtitle(); }, 100);
 element('mic-diagnostics').textContent = microphoneDiagnostics.display();
 setInterval(() => {
   const next = tick(state, performance.now());

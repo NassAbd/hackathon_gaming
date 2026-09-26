@@ -636,3 +636,65 @@ made; the user's real headset phrase is still needed for that comparison.
 No concrete capture/encoding defect was found in this pass. Verify the actual
 itch device and listen to its exact-stream WAV before any further STT tuning.
 A new frontend ZIP is required for these diagnostics; no API redeployment is needed.
+
+## Final player polish
+
+The existing board/voice-panel composition remains. Short onboarding is “Find the
+mate — Hold. Say your move. Release.” The old permanent HEARD box is replaced by a
+subtitle in a reserved gutter below the board; it never covers squares. Existing
+Gradium partial text updates while listening; the finalized utterance takes priority
+while understanding. Result/cancel/retry hides it immediately without deleting the
+full transcript in Debug/session history. Long text is limited to two display lines.
+A speaker attribute supports future distinct styling; no opponent voice or TTS exists.
+
+Press compresses the button immediately, preparation remains honestly labelled until
+capture is ready, and LISTENING displays a small level meter driven by existing RMS.
+Release immediately enters UNDERSTANDING. No synthetic waveform or new processing
+was added. The original clock reservation and stale-response protections are intact.
+
+Validated moves animate the destination glyph from its source for 170 ms, after
+chess.js has already committed the move. Checkmate adds a subtle 180 ms board impact,
+240 ms title pop, score/combo pop and point gain. Next/Retry use a 150 ms fade.
+Animations never gate state, input or progression, and repeated renders do not replay
+move/result effects. Reduced-motion disables movement/pulsing and leaves static
+feedback. Unresolved reads DIDN’T CATCH THAT / Try again; deadline expiry reads
+TIME’S UP with an explicit release-before-zero reminder.
+
+Sound on/off controls a tiny local sine-tone system: activation, command lock,
+failure, checkmate and completion. Checkmate's rising tones also accompany move and
+combo feedback. It creates one output AudioContext after user interaction, catches
+autoplay/device failures and never connects to the mic graph. Tones are suppressed
+while capture is active; the lock cue waits for capture release and may be omitted
+if resolution is already complete. This deliberately favors clean capture over a
+sound at every stage. No external sound assets, network calls or dependencies.
+
+RUN COMPLETE shows final score, puzzles solved and best combo. Best combo is UI-only
+bookkeeping for retained puzzle results; Retry rolls its current-puzzle contribution
+back just like score/solved count. Play again resets the run and best combo while
+preserving the current browser's debug history.
+
+Draft QA for the new ZIP:
+
+1. Upload `release/soniccheck-itch.zip`. At 1280×720 and 1100×620, confirm no page
+   scroll and that subtitles sit below, not over, the board.
+2. Hold and speak “rook to a eight”. Check immediate press feedback, honest setup,
+   LISTENING/level, partial/final subtitle and immediate UNDERSTANDING on release.
+3. Check the animated Ra8#, checkmate impact, +100/combo feedback and optional sound.
+   Toggle Sound off and repeat; test headphones/speakers for sensible output volume.
+4. Retry immediately during an effect: exact board/score reset, no ghost piece and
+   no extra points. Test unresolved “rook”, silence, cancellation and timeout; no
+   failure should pretend a move succeeded. Debug Restart during processing must
+   still reject a late response.
+5. Complete all three puzzles (debug coordinates: a1 a8, g6 g7, g5 f7). Expect score
+   600, solved 3/3, best combo ×3. Play again returns score/combo to zero and ready
+   five seconds; history remains. Also test a miss to break the combo.
+6. Enable OS/browser reduced motion: no movement, shake or pulse. Test keyboard
+   hold/release and visible focus. Confirm Debug typed/coordinate controls,
+   microphone/WAV diagnostics, latency, history and exports still work.
+
+Offline tests cover presentation transitions, unchanged score state, best-combo
+rollback/reset, cue gating/context reuse and safe autoplay failures. Local Chrome
+checks exercised full run/replay, reduced motion, retry/export and mocked voice
+unresolved/retry/mate. Those do not replace a live headset/iframe rehearsal of the
+new build. Provider/capture/game/API files and SPEC remain unchanged in this pass.
+Particles, delayed progression and sounds during recording were deliberately omitted.
