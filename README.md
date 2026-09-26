@@ -7,7 +7,7 @@
 [![TypeScript](https://img.shields.io/badge/TypeScript-5-3178C6?logo=typescript&logoColor=white)](https://www.typescriptlang.org/)
 [![Vite](https://img.shields.io/badge/Vite-5-646CFF?logo=vite&logoColor=white)](https://vitejs.dev/)
 [![Gemini](https://img.shields.io/badge/Google%20Gemini-AI-4285F4?logo=google&logoColor=white)](https://deepmind.google/technologies/gemini/)
-[![Gradium](https://img.shields.io/badge/Gradium-Voice-FF6B35?logoColor=white)](https://gradium.io/)
+[![Gradium](https://img.shields.io/badge/Gradium-Voice-FF6B35?logoColor=white)](https://gradium.ai/)
 [![chess.js](https://img.shields.io/badge/chess.js-Validation-769656?logoColor=white)](https://github.com/jhlywa/chess.js)
 
 > **See it. Say it. Checkmate. — A 10-second voice-controlled chess blitz game where natural language beats chess notation.**
