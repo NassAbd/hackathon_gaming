@@ -6,14 +6,11 @@ SonicCheck is a **10-second voice-controlled chess blitz game**. The board stays
 hidden until Start. Spot the winning move and describe it naturally—no chess
 notation required. English-only hackathon build.
 
-**[PLAY SONICCHECK — ITCH.IO URL TO ADD]**
+**[PLAY SONICCHECK](https://nassabd.itch.io/soniccheck)**
 
 ## Demo
 
-**[▶ Watch the gameplay demo — recording coming soon](assets/demo/soniccheck-demo.mp4)**
-
-A real 15–30 second recording will show reveal → hold to speak → transcript →
-checkmate → score and Black King reaction. The video has not been recorded yet.
+**[▶ Watch the gameplay demo](assets/demo/soniccheck-demo.mp4)**
 
 ## How to play
 
