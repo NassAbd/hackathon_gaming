@@ -526,3 +526,28 @@ and
 B. a simple implementation that works reliably
 
 choose B.
+
+## itch.io Deployment
+
+The final game is intended to run as an HTML5 game embedded on itch.io.
+
+Deployment target:
+
+npm run build
+→ dist/
+→ ZIP contents of dist/
+→ itch.io HTML Game
+
+Requirements:
+
+- `index.html` must exist at the ZIP root.
+- Production assets must work from relative paths.
+- Do not assume the application is hosted at `/`.
+- The game must work inside an iframe.
+- All external API requests must use HTTPS.
+- Test the production build independently from the Vite dev server.
+- The game should adapt to different iframe/fullscreen dimensions.
+- Microphone permissions and external API calls must be tested from the
+  deployed itch.io environment before submission.
+
+A working localhost build is not sufficient for Definition of Done.
