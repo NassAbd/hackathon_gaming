@@ -1,16 +1,28 @@
+<div align="center">
+
 # SonicCheck
 
-**See it. Say it. Checkmate.**
+### Voice-first arcade chess puzzle game — powered by AI
+
+[![TypeScript](https://img.shields.io/badge/TypeScript-5-3178C6?logo=typescript&logoColor=white)](https://www.typescriptlang.org/)
+[![Vite](https://img.shields.io/badge/Vite-5-646CFF?logo=vite&logoColor=white)](https://vitejs.dev/)
+[![Gemini](https://img.shields.io/badge/Google%20Gemini-AI-4285F4?logo=google&logoColor=white)](https://deepmind.google/technologies/gemini/)
+[![Gradium](https://img.shields.io/badge/Gradium-Voice-FF6B35?logoColor=white)](https://gradium.io/)
+[![chess.js](https://img.shields.io/badge/chess.js-Validation-769656?logoColor=white)](https://github.com/jhlywa/chess.js)
+
+> **See it. Say it. Checkmate. — A 10-second voice-controlled chess blitz game where natural language beats chess notation.**
+
+[How to Play](#how-to-play) · [How it Works](#how-it-works) · [Features](#features) · [Tech Stack](#tech-stack) · [Run Locally](#run-locally)
+
+</div>
+
+<video src="https://github.com/user-attachments/assets/28a0cf37-1313-43bb-99c6-1e060df40778" width="100%" controls></video>
+
+---
 
 SonicCheck is a **10-second voice-controlled chess blitz game**. The board stays
 hidden until Start. Spot the winning move and describe it naturally—no chess
 notation required. English-only hackathon build.
-
-**[PLAY SONICCHECK](https://nassabd.itch.io/soniccheck)**
-
-## Demo
-
-**[▶ Watch the gameplay demo](https://github.com/user-attachments/assets/28a0cf37-1313-43bb-99c6-1e060df40778)**
 
 ## How to play
 
