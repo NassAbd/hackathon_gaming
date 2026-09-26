@@ -10,7 +10,7 @@ notation required. English-only hackathon build.
 
 ## Demo
 
-**[▶ Watch the gameplay demo](assets/demo/soniccheck-demo.mp4)**
+**[▶ Watch the gameplay demo](https://github.com/user-attachments/assets/28a0cf37-1313-43bb-99c6-1e060df40778)**
 
 ## How to play
 
