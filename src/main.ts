@@ -27,7 +27,7 @@ root.innerHTML = `
       <p id="voice-status" role="status" aria-live="polite">Enable before Start. Speak during the round, then Send speech before the deadline.</p>
       <section class="mic-diagnostics" aria-label="Microphone development diagnostics"><strong>Microphone diagnostics · development</strong><pre id="mic-diagnostics"></pre></section>
       <details><summary>Voice latency telemetry</summary><pre id="voice-trace">No voice attempt yet. Timestamps use the browser monotonic clock.</pre></details>
-      <form id="intent-form"><label for="intent">Describe your move <span>(English or French)</span></label><div class="input-row"><input id="intent" maxlength="300" autocomplete="off" placeholder="put the rook on the back rank" aria-describedby="intent-help" /><button id="resolve" type="submit">Resolve ↗</button></div></form>
+      <form id="intent-form"><label for="intent">Describe your move <span>(English)</span></label><div class="input-row"><input id="intent" maxlength="300" autocomplete="off" placeholder="put the rook on the back rank" aria-describedby="intent-help" /><button id="resolve" type="submit">Resolve ↗</button></div></form>
       <p id="intent-help">Prepare your words before Start, then Resolve during the round. The clock keeps running.</p>
       <p id="intent-status" role="status" aria-live="polite">Gemini requires a server API key. Fallback controls work without it.</p>
       <details id="intent-inspection"><summary>Inspect interpretation</summary><pre id="intent-trace">No request yet.</pre></details>

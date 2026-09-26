@@ -39,7 +39,10 @@ export class GradiumStream {
     this.timer = setTimeout(() => this.fail(new VoiceFailure('timeout')), timeoutMs);
     this.socket.addEventListener('open', () => {
       if (diagnostic) { diagnostic.socket = 'open'; diagnostic.event('Gradium WS open; sending setup'); }
-      this.send({ type: 'setup', model_name: 'default', input_format: `pcm_${sampleRate}`, json_config: { language: 'any' } });
+      this.send({ type: 'setup', model_name: 'default', input_format: `pcm_${sampleRate}`, json_config: {
+        language: 'en',
+        keywords: { words: ['rook', 'knight', 'bishop', 'queen', 'king', 'pawn', 'check', 'checkmate'], boost: 3 },
+      } });
     });
     this.socket.addEventListener('message', event => this.message((event as MessageEvent<unknown>).data));
     this.socket.addEventListener('error', () => { diagnostic?.error('WebSocket error'); this.fail(new VoiceFailure('network')); });

@@ -184,7 +184,9 @@ transcript/proposal can never execute, even if its FEN is identical.
   only the temporary token and `expires_at`, with no-store caching.
 - Browser: `wss://api.gradium.ai/api/speech/asr?token=…`, one new token per connection.
   Never log the token or store it persistently. The backend does not relay audio.
-- Setup: model `default`, `json_config.language = any` (English/French detection),
+- Setup: model `default`, `json_config.language = en` (English-only MVP),
+  `json_config.keywords = { words: ["rook", "knight", "bishop", "queen", "king", "pawn", "check", "checkmate"], boost: 3 }`.
+  `delay_in_frames` and `temp` remain unset (no latency tuning).
   `input_format = pcm_<actual sample rate>`. AudioWorklet captures mono PCM; samples
   are clipped and encoded as signed 16-bit little-endian, in ~80 ms base64 chunks.
   The requested graph rate is 24 kHz; supported actual rates are 16/24/48 kHz.
@@ -425,3 +427,42 @@ Browser research: [getUserMedia permission/iframe requirements](https://develope
 [Gradium regional routing](https://docs.gradium.ai/guides/data-residency).
 The observed successful mic acquisition/graph rules out a blanket permission denial
 in the local test; the actual itch embed still requires its own permission grant.
+
+### English STT quality check
+
+The English language hint and chess keywords follow Gradium's documented
+[transcription settings](https://docs.gradium.ai/guides/transcription-settings) and
+[keyword boosting](https://docs.gradium.ai/guides/recipes/keyword-boosting).
+Boost 3 is the recommended starting point, not a guarantee of accurate recognition.
+There are no transcript replacements. The existing 80 ms PCM chunks match the
+[browser streaming guidance](https://docs.gradium.ai/guides/recipes/browser-microphone-stt).
+The graph requests 24 kHz and declares its actual rate; no resampling was added.
+
+After uploading the new ZIP to the itch.io Draft, test each phrase below twice in
+roughly the same quiet setting and at the same microphone distance. For each trial,
+Enable microphone, Start round, speak, then Send speech before the deadline.
+Use Replay as needed. Read/copy **TRANSCRIPT** from microphone diagnostics before
+starting the next attempt; judge the raw Gradium text, not Gemini's move or success.
+These are STT probes: some intentionally do not describe a legal move on the puzzle.
+
+- move the rook to the top
+- rook to a eight
+- move the knight beside the king
+- put the queen next to the king
+- move the bishop across the board
+- rook behind the king
+- checkmate with the rook
+- move the pawn forward
+
+Record expected phrase, raw transcript, chess-word errors and
+`transcriptAvailable - speechCommitted` from Voice latency telemetry for each trial.
+Ignore punctuation/case; note equivalent coordinate renderings such as “a8”.
+Compare against the old Draft under the same conditions if it remains available.
+No spoken accuracy or latency improvement has been measured for this configuration
+in automated tests; human microphone testing is required.
+
+Build the updated ZIP with:
+
+```sh
+VITE_API_BASE_URL=https://soniccheck-api.vercel.app/api npm run build:itch
+```

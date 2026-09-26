@@ -16,7 +16,7 @@ it('uses token/setup, waits for ready, streams audio and waits for final transcr
   expect(url).toBe('wss://eu.api.gradium.ai/api/speech/asr?token=temporary');
   stream.audio(new Float32Array([0])); expect(socket.send).not.toHaveBeenCalled();
   socket.dispatchEvent(new Event('open'));
-  expect(JSON.parse(socket.send.mock.calls[0][0])).toMatchObject({ type: 'setup', input_format: 'pcm_24000', json_config: { language: 'any' } });
+  expect(JSON.parse(socket.send.mock.calls[0][0])).toMatchObject({ type: 'setup', input_format: 'pcm_24000', json_config: { language: 'en', keywords: { words: ['rook', 'knight', 'bishop', 'queen', 'king', 'pawn', 'check', 'checkmate'], boost: 3 } } });
   socket.message({ type: 'ready' }); await stream.ready;
   stream.audio(new Float32Array([1]));
   expect(JSON.parse(socket.send.mock.calls[1][0]).type).toBe('audio');
@@ -58,4 +58,19 @@ it('records provider rejection before cleanup without leaking token or provider 
   expect(failed).toHaveBeenCalledOnce();
   expect(lines.join('\n')).not.toContain('secret-token-fixture');
   expect(diagnostic.display()).not.toContain('secret-token-fixture');
+});
+
+it.each([16000, 24000, 48000])('declares the actual %i Hz PCM rate and leaves latency settings unchanged', async sampleRate => {
+  const socket = new FakeSocket();
+  const stream = new GradiumStream('temporary', sampleRate, vi.fn(), () => socket);
+  socket.dispatchEvent(new Event('open'));
+  const setup = JSON.parse(socket.send.mock.calls[0][0]);
+  expect(setup.input_format).toBe(`pcm_${sampleRate}`);
+  expect(setup.json_config).not.toHaveProperty('delay_in_frames');
+  expect(setup.json_config).not.toHaveProperty('temp');
+  socket.message({ type: 'ready' }); await stream.ready;
+  socket.message({ type: 'text', text: 'move the book to the top' });
+  const final = stream.finish();
+  socket.message({ type: 'end_of_stream' });
+  expect(await final).toBe('move the book to the top');
 });
