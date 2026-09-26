@@ -36,7 +36,7 @@ were verified. The user subsequently confirmed a working spoken end-to-end flow;
 
 1. Press **PREPARE MIC** and grant permission. The puzzle stays hidden while
    microphone/audio/socket setup completes. Wait for **MIC READY**.
-2. Press **START PUZZLE**. The board appears and the five-second timer starts
+2. Press **START PUZZLE**. The board appears and the ten-second timer starts
    together. Thinking time counts. Hold **HOLD TO SPEAK** (pointer or Space/Enter),
    speak, and release before zero.
 3. Remaining time is captured on release while transcription/intent finish.
@@ -50,7 +50,7 @@ The player view is composed for 1280×720 and 1100×620 with no required scrolli
 Enable/Start/Send controls, typed intent, coordinates, microphone lifecycle,
 Gradium state, raw transcript, intent proposal, validation and latency telemetry.
 Board clicks are enabled while this drawer is open. Debug Start begins the usual
-five-second clock; Close returns to the player view. No provider configuration,
+ten-second clock; Close returns to the player view. No provider configuration,
 semantic prompt/model, API contract, chess rules or puzzle fixtures changed.
 
 Release during a fallback setup cancels without resetting the active round. Pointer cancellation,
@@ -65,7 +65,7 @@ Descriptions for the current pack:
 - Queen: “move the queen from g6 to g7”
 - Knight: “put the horse on f7”
 
-Typed requests retain their existing five-second deadline behavior. Voice uses the
+Typed requests retain their existing ten-second deadline behavior. Voice uses the
 commit-time reservation described below. Click and coordinate controls remain
 available during processing; using a fallback cancels pending voice first.
 
@@ -184,7 +184,7 @@ coordinate (`a1 b3`), legal miss (`a1 a2`), timeout, 600-point run, and replay.
 The first locally received audio chunk above RMS 0.01 marks `speechStart`. This is
 an energy gate, not semantic VAD: noise can pass it and very quiet speech can fail
 it. A commit requires this local signal; empty/overlong final transcripts do not
-call Gemini. Before commit, the normal five-second deadline applies. At commit,
+call Gemini. Before commit, the normal ten-second deadline applies. At commit,
 the remaining time is reserved and displayed while remote work runs. On failure
 or cancellation the exact remainder resumes from the current time. Success goes
 through the existing `submitMove` and score/combo logic. Model/network duration
@@ -506,7 +506,7 @@ Manual itch.io release test (do not auto-deploy):
 3. Check HEARD, UNDERSTANDING, frozen remaining time, then CHECKMATE and score/combo.
 4. On a fresh run, say “rook” and release: an unresolved result must leave the board
    unchanged. Try a specific move again if time remains. Also test silence,
-   permission denial, release during setup, and a hold exceeding five seconds.
+   permission denial, release during setup, and a hold exceeding ten seconds.
 5. Release outside the button; pointer capture should still commit once. Cancel a
    hold by switching away; returning must not apply a late move. Test keyboard
    Space/Enter hold/release, next puzzle and replay.
@@ -518,7 +518,7 @@ The new ZIP is required; the Vercel API does not need redeployment for this pass
 ## Retry puzzle and QA session log
 
 **Retry puzzle** appears beside Next puzzle / See results after a result. It restores
-that puzzle's exact initial FEN, ready state and full five-second timer, clearing
+that puzzle's exact initial FEN, ready state and full ten-second timer, clearing
 selection, result, transcript and interaction status. It aborts pending voice and
 typed requests and resets push-to-talk ownership before restoring state. Debug also
 provides **Restart current puzzle**, including during processing, for stale-result QA.
@@ -560,10 +560,10 @@ uses chess.js against the recorded FEN; it never asks Gemini for SAN or changes 
 Manual QA after uploading the new ZIP to the existing itch Draft:
 
 1. Hold/speak/release “rook to a eight”; inspect HEARD and the result.
-2. Retry puzzle; confirm the rook returns to a1, timer shows 5.0s and the score
+2. Retry puzzle; confirm the rook returns to a1, timer shows 10.0s and the score
    returns to the puzzle-entry value. Try “move the rook to the back rank”.
 3. Retry and try a third phrase. For unresolved input, use Debug Restart if you
-   want a fresh five-second attempt without waiting for the result timeout.
+   want a fresh ten-second attempt without waiting for the result timeout.
 4. Open Debug → Session log. Confirm three separate entries with the same puzzle
    FEN and distinct retry indices. Copy or download and inspect all three entries.
 5. During another UNDERSTANDING state, use Debug Restart. A late response must not
@@ -679,15 +679,14 @@ Draft QA for the new ZIP:
    scroll and that subtitles sit below, not over, the board.
 2. Hold and speak “rook to a eight”. Check immediate press feedback, honest setup,
    LISTENING/level, partial/final subtitle and immediate UNDERSTANDING on release.
-3. Check the animated Ra8#, checkmate impact, +100/combo feedback and optional sound.
+3. Check the animated Ra8#, checkmate impact, time-bonus/combo feedback and optional sound.
    Toggle Sound off and repeat; test headphones/speakers for sensible output volume.
 4. Retry immediately during an effect: exact board/score reset, no ghost piece and
    no extra points. Test unresolved “rook”, silence, cancellation and timeout; no
    failure should pretend a move succeeded. Debug Restart during processing must
    still reject a late response.
-5. Complete all three puzzles (debug coordinates: a1 a8, g6 g7, g5 f7). Expect score
-   600, solved 3/3, best combo ×3. Play again returns score/combo to zero and ready
-   five seconds; history remains. Also test a miss to break the combo.
+5. Complete all three puzzles (debug coordinates: a1 a8, g6 g7, g5 f7). Expect a time-dependent score, solved 3/3, best combo ×3. Play again returns score/combo to zero and ready
+   ten seconds; history remains. Also test a miss to break the combo.
 6. Enable OS/browser reduced motion: no movement, shake or pulse. Test keyboard
    hold/release and visible focus. Confirm Debug typed/coordinate controls,
    microphone/WAV diagnostics, latency, history and exports still work.
@@ -709,7 +708,7 @@ UI action. A 120 ms fade does not delay input and is skipped for reduced motion.
 Push-to-talk never starts or resets the deadline. Preparation acquires the existing
 microphone graph and provider readiness before Start; PCM streaming starts only on
 hold. Prepared connections retain their existing 30-second expiry. The UI retires an
-unused prepared capture after 20 seconds, leaving a full round plus margin; prepare
+unused prepared capture after 15 seconds, leaving a full round plus margin; prepare
 again before revealing. After an unsuccessful committed attempt, a fresh connection uses the
 remaining round time as before. No provider/capture settings changed.
 
@@ -725,7 +724,7 @@ and experiment docs were removed. Real local WAVs remain untouched under
 exports are preserved. No new dependency or API deployment is needed.
 
 Draft QA (upload manually; never auto-deploy):
-1. At 1280×720 and 1100×620, verify hidden READY, generic title, five seconds,
+1. At 1280×720 and 1100×620, verify hidden READY, generic title, ten seconds,
    no piece labels, and visible Prepare/Start. Prepare and grant permission.
 2. Start: board appears and timer falls immediately. Think for one second, then
    hold; verify the timer does not reset. Say “rook to a eight” and release before
@@ -744,7 +743,7 @@ Build: `VITE_API_BASE_URL=https://soniccheck-api.vercel.app/api npm run build:it
 
 ## Experience completion pass
 
-Current gameplay retains hidden READY → Prepare → Start/reveal + five-second
+Current gameplay retains hidden READY → Prepare → Start/reveal + ten-second
 clock → hold/speak/release. Player copy encourages “Move…” / “Put…” without imposing
 a grammar or notation. Provider credits now live in Debug. The board has shallow
 CSS depth, an immediate 180 ms reveal and urgent clock color; none delays gameplay.
@@ -785,3 +784,13 @@ a legal non-mate, and a late release. Complete all three, check hidden Next,
 results and Play Again. At 1280×720 and 1100×620 test mute, reduced motion and Debug
 typed/coordinate/WAV/session exports. Real headset/iframe rehearsal is required;
 local mocked speech checks do not establish STT quality.
+
+## Ten-second blitz and scoring
+
+The final gameplay request overrides SPEC's five-second duration: competitive rounds now last ten seconds. SPEC.md is preserved. READY hides the board; Start reveals it and starts the deadline. Thinking and PTT consume that same clock. A valid voice commit reserves time and score before remote processing; PTT never resets time. Typed/click moves use remaining time when validated.
+
+Per mate: **(100 + floor(remaining milliseconds / 100)) × new combo**, with remaining time clamped to 0–10,000 ms. At 9/7/5/3/1 seconds remaining, combo ×1 earns 190/170/150/130/110 points; ×2 doubles and ×3 triples these. Misses/timeouts earn zero and reset combo. Retry restores the puzzle-entry totals so attempts cannot accumulate points. Historical 600-point run observations above predate this bonus.
+
+Offline Black King voice generation was stopped before any API calls or assets: [Gradium July 2026 terms §6.2](https://gradium.ai/terms-of-service) restrict free plans to internal/non-commercial use. The hackathon account's entitlement to distribute generated audio publicly has not been established. Confirm the applicable paid-plan or written hackathon permission before generation. No voice/model was selected, no speech files were generated, and no runtime TTS was introduced. Existing text and local synthesized SFX remain; PTT stops SFX before capture.
+
+Draft QA: at 1280×720 and 1100×620, verify hidden READY → Prepare microphone → Start at 10.0 → think two seconds → hold/speak/release before zero. The timer must not reset on hold; remaining time freezes during processing. Check mate points against the formula, Retry rolls them back, Next conceals the next puzzle, all three solutions complete the run, and Play Again resets totals. Also wait to zero without speaking and verify timeout. No Black King spoken line is expected in this build.

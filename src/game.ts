@@ -2,7 +2,7 @@ import { Chess } from 'chess.js';
 import type { Candidate, GameState } from './contracts';
 import { PUZZLES } from './puzzles';
 
-export const ROUND_MS = 5000;
+export const ROUND_MS = 10000;
 
 export function createGame(): GameState {
   return {
@@ -40,11 +40,14 @@ export function submitMove(state: GameState, candidate: unknown, now: number): G
     const move = chess.move(candidate);
     const mate = chess.isCheckmate();
     const combo = mate ? current.combo + 1 : 0;
+    // VoiceSession restores the commit-time remainder before invoking this function.
+    const remainingMs = Math.max(0, Math.min(ROUND_MS, (current.deadline ?? now) - now));
+    const points = mate ? (100 + Math.floor(remainingMs / 100)) * combo : 0;
     return {
       ...current, fen: chess.fen(), phase: 'result', outcome: mate ? 'mate' : 'miss',
-      score: current.score + (mate ? 100 * combo : 0), combo,
+      score: current.score + points, combo,
       solved: current.solved + (mate ? 1 : 0), lastMove: { from: move.from, to: move.to },
-      feedback: mate ? `Checkmate! ${move.san} · +${100 * combo} points` : `${move.san} is legal, but it isn’t checkmate. Combo reset.`,
+      feedback: mate ? `Checkmate! ${move.san} · +${points} points` : `${move.san} is legal, but it isn’t checkmate. Combo reset.`,
     };
   } catch {
     return { ...current, feedback: 'Illegal move. Your board is unchanged — try again!' };

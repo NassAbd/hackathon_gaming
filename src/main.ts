@@ -23,14 +23,14 @@ const root = document.querySelector<HTMLDivElement>('#app');
 if (!root) throw new Error('Missing app root');
 const debug = new URLSearchParams(location.search).get('debug') === '1';
 root.innerHTML = `
-  <header><a class="brand" href="./">◉ SonicCheck<span>VOICE CHESS · ENGLISH</span></a><span class="mode">ONE MOVE. FIVE SECONDS.</span><button id="sound-toggle" type="button" aria-pressed="false" aria-label="Mute sound effects">Sound on</button><button id="debug-toggle" type="button" aria-expanded="false">Debug</button></header>
+  <header><a class="brand" href="./">◉ SonicCheck<span>VOICE CHESS · ENGLISH</span></a><span class="mode">ONE MOVE. TEN SECONDS.</span><button id="sound-toggle" type="button" aria-pressed="false" aria-label="Mute sound effects">Sound on</button><button id="debug-toggle" type="button" aria-expanded="false">Debug</button></header>
   <main class="arena">
     <section class="board-stage" aria-label="Chess puzzle">
       <div class="puzzle-heading"><div><p class="eyebrow" id="progress"></p><h2 id="title"></h2></div><span class="side">White to move · Mate in one</span></div>
       <div id="board" class="board" role="group" aria-label="Chessboard, white at bottom"></div><div id="subtitle" class="subtitle" data-speaker="player" aria-live="polite" aria-atomic="true"><span id="speaker" class="speaker">YOU</span><span id="heard"></span></div>
     </section>
     <section class="play-panel" aria-label="Voice controls and results">
-      <div class="stats"><div><span>SCORE</span><strong id="score">0</strong></div><div><span>COMBO</span><strong id="combo">×0</strong></div><div><span>TIME LEFT</span><strong id="timer" role="timer">5.0s</strong></div></div>
+      <div class="stats"><div><span>SCORE</span><strong id="score">0</strong></div><div><span>COMBO</span><strong id="combo">×0</strong></div><div><span>TIME LEFT</span><strong id="timer" role="timer">10.0s</strong></div></div>
       <div class="time-track"><div id="time-bar"></div></div>
       <div class="player-feedback" aria-live="polite"><p class="eyebrow" id="player-eyebrow">FIND THE MATE</p><div id="result-san" aria-hidden="true"></div><h1 id="player-state">READY</h1><p id="feedback"></p></div>
       <div id="score-gain" aria-hidden="true"></div><section id="run-summary" hidden aria-label="Final results"><div><span>FINAL SCORE</span><strong id="final-score"></strong></div><div><span>PUZZLES SOLVED</span><strong id="final-solved"></strong></div><div><span>BEST COMBO</span><strong id="best-combo"></strong></div></section><div id="listening-level" class="listening-level" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i></div>
@@ -468,7 +468,7 @@ element('sound-toggle').addEventListener('click', () => {
 });
 function revealPuzzle(development = false): void {
   if (state.phase !== 'ready' || microphoneSetup || (!armedCapture && !development)) return;
-  if (armedCapture && performance.now() - preparedAt >= 20000) {
+  if (armedCapture && performance.now() - preparedAt >= 15000) {
     cancelVoice('prepared capture expired before reveal');
     playerError = 'Prepare microphone again'; render(); return;
   }
@@ -520,7 +520,7 @@ setInterval(() => { element('mic-diagnostics').textContent = microphoneDiagnosti
 element('mic-diagnostics').textContent = microphoneDiagnostics.display();
 setInterval(() => {
   // Keep at least a full round plus processing margin inside the existing 30s connection lease.
-  if (state.phase === 'ready' && armedCapture && performance.now() - preparedAt >= 20000) {
+  if (state.phase === 'ready' && armedCapture && performance.now() - preparedAt >= 15000) {
     cancelVoice('prepared capture expired before reveal');
     playerError = 'Prepare microphone again'; render();
   }

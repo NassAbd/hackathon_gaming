@@ -29,7 +29,7 @@ export class RunPresentation {
 
 /** Fixed presentation only, never a puzzle hint or generated dialogue. */
 export function kingLine(state: GameState): string {
-  if (state.phase === 'ready') return 'Five seconds. Show me.';
+  if (state.phase === 'ready') return 'Ten seconds. Show me.';
   if (state.phase === 'complete') return state.solved === 3 ? 'Okay. You win.' : 'Another round?';
   if (state.phase === 'result') return state.outcome === 'mate' ? 'Well played.' : state.outcome === 'miss' ? 'Still standing.' : 'Time waits for no king.';
   return '';

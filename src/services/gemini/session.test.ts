@@ -22,7 +22,7 @@ describe('intent session race safety', () => {
     await session.run('again', h.access);
     expect(h.access.resolve).toHaveBeenCalledTimes(1);
     h.finish(resolved); await pending;
-    expect(h.access.getState()).toMatchObject({ score: 100, outcome: 'mate' });
+    expect(h.access.getState()).toMatchObject({ score: 199, outcome: 'mate' });
     expect(h.access.getState().feedback).toContain('Ra8#');
     expect(session.pending).toBe(false);
   });
@@ -41,12 +41,12 @@ describe('intent session race safety', () => {
   it('discards a response at the deadline even if timer tick has not run', async () => {
     const h = harness(); const before = h.access.getState();
     const pending = new IntentSession().run('rook', h.access);
-    h.time(5000); h.finish(resolved); await pending;
+    h.time(10000); h.finish(resolved); await pending;
     expect(h.access.getState()).toBe(before);
     expect(h.access.inspect.mock.lastCall?.[0].message).toContain('discarded');
   });
   it('cannot overwrite a fallback move or expired round', async () => {
-    for (const transition of [() => submitMove(startRound(createGame(), 0), { from: 'a1', to: 'a2' }, 200), () => tick(startRound(createGame(), 0), 5000)]) {
+    for (const transition of [() => submitMove(startRound(createGame(), 0), { from: 'a1', to: 'a2' }, 200), () => tick(startRound(createGame(), 0), 10000)]) {
       const h = harness(); const pending = new IntentSession().run('rook', h.access);
       const next = transition(); h.access.setState(next);
       h.finish(resolved); await pending;

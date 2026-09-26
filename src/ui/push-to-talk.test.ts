@@ -52,10 +52,10 @@ it('preserves the reveal deadline while thinking and commits through VoiceSessio
     cancel: () => session.cancel(), changed: vi.fn(), failed: vi.fn() });
   await talk.press(); expect(state.phase).toBe('ready');
   state = startRound(state, now); now = 2000;
-  await talk.press(); expect(state.phase).toBe('playing'); expect(state.deadline).toBe(6000);
-  now = 3000; const release = talk.release(); expect(session.remainingMs).toBe(3000);
+  await talk.press(); expect(state.phase).toBe('playing'); expect(state.deadline).toBe(11000);
+  now = 3000; const release = talk.release(); expect(session.remainingMs).toBe(8000);
   now = 12000; finalTranscript('rook to a eight'); await release;
-  expect(state).toMatchObject({ phase: 'result', outcome: 'mate', score: 100 });
+  expect(state).toMatchObject({ phase: 'result', outcome: 'mate', score: 180 });
   expect(talk.phase).toBe('idle'); expect(session.telemetry.speechCommitted).toBe(3000);
 });
 
@@ -68,8 +68,8 @@ it('thinking and a held command past the reveal deadline cannot become a late va
   const voice = new VoiceSession({ getState: () => state, setState: next => { state = next; }, now: () => now, resolve, inspect: vi.fn() });
   const talk = new PushToTalk({ allowed: () => state.phase === 'playing', prepare: async () => capture,
     start: c => voice.listen(c), commit: () => voice.commit(), cancel: () => voice.cancel(), changed: vi.fn(), failed: vi.fn() });
-  await talk.press(); expect(state.deadline).toBe(5000);
-  now = 5000; state = tick(state, now); await talk.release();
+  await talk.press(); expect(state.deadline).toBe(10000);
+  now = 10000; state = tick(state, now); await talk.release();
   expect(state.outcome).toBe('timeout'); expect(state.score).toBe(0);
   expect(resolve).not.toHaveBeenCalled(); expect(capture.finish).not.toHaveBeenCalled();
 });

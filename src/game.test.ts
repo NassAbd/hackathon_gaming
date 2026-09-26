@@ -17,7 +17,7 @@ describe('puzzle pack', () => {
 });
 
 describe('deterministic game loop', () => {
-  it('waits for start, with a five-second deadline', () => {
+  it('waits for start, with a ten-second deadline', () => {
     const ready = createGame();
     expect(ready.phase).toBe('ready');
     expect(tick(ready, 90000)).toBe(ready);
@@ -39,7 +39,7 @@ describe('deterministic game loop', () => {
     const won = submitMove(playing(), PUZZLES[0].solution, 200);
     expect(won.phase).toBe('result');
     expect(won.outcome).toBe('mate');
-    expect(won.score).toBe(100);
+    expect(won.score).toBe(199);
     expect(won.combo).toBe(1);
     expect(new Chess(won.fen).isCheckmate()).toBe(true);
     expect(won.feedback).toContain('Ra8#');
@@ -57,12 +57,12 @@ describe('deterministic game loop', () => {
 
   it('uses the exact deadline, including late submissions without a timer tick', () => {
     const state = { ...playing(), combo: 2 };
-    expect(tick(state, 5099)).toBe(state);
-    const expired = tick(state, 5100);
+    expect(tick(state, 10099)).toBe(state);
+    const expired = tick(state, 10100);
     expect(expired.outcome).toBe('timeout');
     expect(expired.combo).toBe(0);
     expect(expired.fen).toBe(state.fen);
-    expect(submitMove(state, PUZZLES[0].solution, 5100)).toEqual(expired);
+    expect(submitMove(state, PUZZLES[0].solution, 10100)).toEqual(expired);
     expect(submitMove(state, PUZZLES[0].solution, 99999)).toEqual(expired);
   });
 
@@ -76,7 +76,7 @@ describe('deterministic game loop', () => {
       state = advance(state);
     }
     expect(state.phase).toBe('complete');
-    expect(state.score).toBe(600);
+    expect(state.score).toBe(1140);
     expect(state.solved).toBe(3);
     expect(advance(state)).toBe(state);
     expect(createGame()).toMatchObject({ score: 0, combo: 0, solved: 0, puzzleIndex: 0, phase: 'ready' });
@@ -85,9 +85,16 @@ describe('deterministic game loop', () => {
   it('does not skip an active round, and advances after a timeout', () => {
     const state = playing();
     expect(advance(state)).toBe(state);
-    const next = advance(tick(state, 5100));
+    const next = advance(tick(state, 10100));
     expect(next.phase).toBe('ready');
     expect(next.puzzleIndex).toBe(1);
     expect(next.deadline).toBeNull();
   });
 });
+
+ it.each([1, 2, 3])('awards deterministic time bonuses at combo %i', combo => {
+  for (const [remaining, base] of [[9000,190],[7000,170],[5000,150],[3000,130],[1000,110],[0.001,100]]) {
+    const state = { ...startRound(createGame(), 0), combo: combo - 1, score: 300 };
+    expect(submitMove(state, PUZZLES[0].solution, ROUND_MS - remaining).score).toBe(300 + base * combo);
+  }
+ });

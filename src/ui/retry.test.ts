@@ -8,14 +8,14 @@ it('restores exact starting position and rolls back score without farming; next 
     const ready = retryPuzzle(initial, cancel);
     expect(ready).toEqual(initial); expect(ready).not.toBe(initial);
     const result = submitMove(startRound(ready, 0), PUZZLES[0].solution, 100);
-    expect(result.score).toBe(100); expect(result.solved).toBe(1);
-    expect(advance(result)).toMatchObject({ puzzleIndex: 1, score: 100 });
+    expect(result.score).toBe(199); expect(result.solved).toBe(1);
+    expect(advance(result)).toMatchObject({ puzzleIndex: 1, score: 199 });
   }
   expect(cancel).toHaveBeenCalledTimes(3);
 });
 it('retains earlier puzzle score/combo, not current puzzle contributions', () => {
   const initial = advance(submitMove(startRound(createGame(), 0), PUZZLES[0].solution, 100));
-  expect(retryPuzzle(initial, vi.fn())).toMatchObject({ score: 100, combo: 1, solved: 1, fen: PUZZLES[1].fen });
+  expect(retryPuzzle(initial, vi.fn())).toMatchObject({ score: 199, combo: 1, solved: 1, fen: PUZZLES[1].fen });
 });
 it('retry resets hold state and blocks a late Gemini result even with the same FEN', async () => {
   const { PushToTalk } = await import('./push-to-talk');

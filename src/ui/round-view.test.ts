@@ -9,9 +9,9 @@ it('omits the initial position and identifying title until timed reveal', () => 
   expect(JSON.stringify(roundView(ready))).not.toContain(PUZZLES[0].fen);
   const revealed = startRound(ready, 1000);
   expect(roundView(revealed).fen).toBe(PUZZLES[0].fen);
-  expect(revealed.deadline).toBe(6000);
+  expect(revealed.deadline).toBe(11000);
   expect(startRound(revealed, 3000)).toBe(revealed);
-  expect(tick(revealed, 6000).outcome).toBe('timeout');
+  expect(tick(revealed, 11000).outcome).toBe('timeout');
 });
 it('conceals every Next position and Play Again, with no cosmetic delay', () => {
   let state = createGame();

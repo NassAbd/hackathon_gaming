@@ -13,7 +13,7 @@ it('effects fire once, leave scoring untouched and reset best combo on retry/pla
   const ui = new RunPresentation(); const initial = createGame(); ui.observe(initial, 1);
   let state = startRound(initial, 0); ui.observe(state, 1);
   state = submitMove(state, PUZZLES[0].solution, 100); const copy = structuredClone(state);
-  expect(ui.observe(state, 1)).toMatchObject({ moved: true, result: true, gain: 100, bestCombo: 1 });
+  expect(ui.observe(state, 1)).toMatchObject({ moved: true, result: true, gain: 199, bestCombo: 1 });
   expect(ui.observe(state, 1)).toMatchObject({ moved: false, result: false, gain: 0 }); expect(state).toEqual(copy);
   expect(ui.observe({ ...initial }, 1)).toMatchObject({ transition: true, bestCombo: 0 });
   ui.observe(state, 1); state = advance(state); expect(ui.observe(state, 1).bestCombo).toBe(1);
@@ -31,7 +31,7 @@ it('keeps failed recognition visible only in the active round and gives the king
   const { kingLine } = await import('./presentation');
   expect(subtitleText('playing', false, false, 'partial', 'heard words', true)).toBe('heard words');
   expect(subtitleText('ready', false, false, 'old', 'old', true)).toBe('');
-  expect(kingLine(createGame())).toBe('Five seconds. Show me.');
+  expect(kingLine(createGame())).toBe('Ten seconds. Show me.');
   expect(kingLine(startRound(createGame(), 0))).toBe('');
 });
 it('recognizes a real capture and check using chess.js state, only once', () => {
