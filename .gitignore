@@ -17,3 +17,9 @@ vercel-static/
 # Retained private exact-stream recordings (abandoned STT evaluation)
 evals/stt/audio/*
 !evals/stt/audio/.gitkeep
+
+# Private local TTS evaluation; never ship or commit
+/tmp/gradium-black-king/
+
+# Local voice integration pending redistribution approval
+/src/assets/black-king/*.wav

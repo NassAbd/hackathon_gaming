@@ -1,5 +1,7 @@
 import { roundView } from './ui/round-view';
 import { RunPresentation, subtitleText, failureTitle, motionDuration, kingLine } from './ui/presentation';
+import { BlackKingVoice, KING_LINES, kingCue } from './ui/black-king';
+import { KING_AUDIO } from './ui/black-king-assets';
 import { LocalSfx } from './ui/sfx';
 import { debugAudio } from './services/gradium/debug-audio';
 import { retryPuzzle } from './ui/retry';
@@ -102,6 +104,9 @@ let preparedAt = 0;
 let microphoneSetup: AbortController | null = null;
 let playerError = '';
 let heard = '';
+let unresolvedVoice = false;
+let unresolvedSequence = 0;
+const kingVoice = new BlackKingVoice(KING_AUDIO, () => microphoneDiagnostics.recording || voiceSession.listening || talk.phase === 'preparing' || !!microphoneSetup);
 let debugOpen = debug;
 const voiceSession = new VoiceSession({
   getState: () => state,
@@ -110,6 +115,7 @@ const voiceSession = new VoiceSession({
   resolve: requestIntent,
   changed: () => { if (state.phase === 'playing') playerError = 'Didn’t catch that — try again'; render(); },
   completed: (result, transcript, telemetry) => {
+    if (result.result === 'unresolved') { unresolvedVoice = true; unresolvedSequence++; }
     if (activeAttempt !== null) history.update(activeAttempt, transcript, telemetry, microphoneDiagnostics);
     finishAttempt(result);
   },
@@ -137,6 +143,7 @@ const voiceSession = new VoiceSession({
 const talk = new PushToTalk({
   allowed: () => state.phase === 'playing' && state.deadline !== null && performance.now() < state.deadline && !voiceSession.pending && !intentSession.pending && !microphoneSetup,
   prepare: signal => {
+    kingVoice.stop(); sfx.stop(); unresolvedVoice = false;
     playerError = ''; heard = '';
     if (armedCapture) { const capture = armedCapture; armedCapture = null; return Promise.resolve(capture); }
     return prepareLogged(signal, error => {
@@ -146,7 +153,7 @@ const talk = new PushToTalk({
     });
   },
   start: capture => {
-    sfx.stop();
+    kingVoice.stop(); sfx.stop();
     voiceSession.listen(capture);
   },
   commit: async () => { const round = roundIndex; heard = microphoneDiagnostics.transcript || heard; await voiceSession.commit(); if (round === roundIndex && state.phase === 'playing') playerError = 'Didn’t catch that — try again'; },
@@ -329,9 +336,11 @@ function animate(target: HTMLElement, frames: Keyframe[], duration: number): voi
 }
 let lockedAttempt: number | null = null;
 function renderSubtitle(): void {
-  const text = subtitleText(state.phase, voiceSession.listening, voiceSession.pending,
+  const cue = kingCue(state, roundIndex, unresolvedVoice && !voiceSession.pending && !voiceSession.listening && talk.phase !== 'preparing', performance.now());
+  const text = cue ? '' : subtitleText(state.phase, voiceSession.listening, voiceSession.pending,
     microphoneDiagnostics.transcript, heard, playerError.startsWith('Didn’t catch'));
-  const character = text ? '' : kingLine(state);
+  const character = cue ? KING_LINES[cue] : text ? '' : kingLine(state);
+  kingVoice.update(`${roundIndex}:${state.phase}:${cue}:${cue === 'unresolved' ? unresolvedSequence : ''}`, cue);
   element('subtitle').dataset.speaker = character ? 'opponent' : 'player';
   element('speaker').textContent = character ? '♚ BLACK KING' : 'YOU';
   element('subtitle').dataset.visible = String(!!(text || character));
@@ -345,6 +354,7 @@ function renderSubtitle(): void {
 
 element('microphone').addEventListener('click', async () => {
   if (microphoneSetup || armedCapture || voiceSession.listening || voiceSession.pending) return;
+  kingVoice.stop(); unresolvedVoice = false;
   const setup = new AbortController(); microphoneSetup = setup;
   element('voice-status').textContent = 'Preparing microphone and Gradium connection…'; render();
   try {
@@ -356,7 +366,7 @@ element('microphone').addEventListener('click', async () => {
     });
     if (microphoneSetup !== setup) { capture.cancel(); return; }
     microphoneSetup = null;
-    if (state.phase === 'playing') { sfx.stop(); voiceSession.listen(capture); }
+    if (state.phase === 'playing') { kingVoice.stop(); sfx.stop(); voiceSession.listen(capture); }
     else if (state.phase === 'ready') { armedCapture = capture; preparedAt = performance.now(); microphoneDiagnostics.event('Capture retained in armedCapture; phase=ready'); element('voice-status').textContent = 'Microphone ready. Start the round, speak, then Send speech.'; }
     else capture.cancel();
   } catch (error) {
@@ -367,17 +377,19 @@ element('voice-send').addEventListener('click', () => { void voiceSession.commit
 element('voice-cancel').addEventListener('click', () => {
   cancelVoice(); element('voice-status').textContent = 'Voice cancelled. Use voice again or a fallback control.'; render();
 });
-window.addEventListener('pagehide', () => cancelVoice('pagehide'));
+window.addEventListener('pagehide', () => { kingVoice.stop(); cancelVoice('pagehide'); });
 
 element<HTMLFormElement>('intent-form').addEventListener('submit', async (event) => {
   event.preventDefault();
   cancelVoice();
+  kingVoice.stop(); unresolvedVoice = false;
   await intentSession.run(intentInput.value, {
     getState: () => state,
     setState: (next) => { state = next; selected = null; },
     now: () => performance.now(),
     resolve: requestIntent,
     inspect: (inspection) => {
+      if (inspection.result?.status === 'unresolved') { unresolvedVoice = true; unresolvedSequence++; }
       element('intent-status').textContent = inspection.message;
       element('intent-trace').textContent = JSON.stringify({
         utterance: inspection.utterance,
@@ -400,6 +412,7 @@ element<HTMLFormElement>('move-form').addEventListener('submit', (event) => {
   render();
 });
 action.addEventListener('click', () => {
+  kingVoice.stop(); unresolvedVoice = false;
   intentSession.cancel();
   if (state.phase !== 'ready') cancelVoice();
   if (state.phase !== 'ready') {
@@ -417,6 +430,7 @@ action.addEventListener('click', () => {
 });
 function retryCurrent(): void {
   if (state.phase === 'complete') return;
+  kingVoice.stop(); unresolvedVoice = false;
   state = retryPuzzle(puzzleInitial, () => { cancelVoice('retry puzzle'); intentSession.cancel(); });
   pointer = null; keyboardHeld = false;
   roundIndex++; retryIndex++;
@@ -458,10 +472,10 @@ element('download-log').addEventListener('click', () => {
   link.click(); setTimeout(() => URL.revokeObjectURL(url), 1000);
 });
 // One global unlock listener per input type; retries never register new handlers.
-document.addEventListener('pointerdown', () => sfx.unlock(), { capture: true });
+document.addEventListener('pointerdown', () => { sfx.unlock(); kingVoice.unlock(); }, { capture: true });
 document.addEventListener('keydown', () => sfx.unlock(), { capture: true });
 element('sound-toggle').addEventListener('click', () => {
-  sfx.muted = !sfx.muted;
+  sfx.muted = !sfx.muted; kingVoice.muted = sfx.muted;
   element('sound-toggle').textContent = sfx.muted ? 'Sound off' : 'Sound on';
   element('sound-toggle').setAttribute('aria-pressed', String(sfx.muted));
   element('sound-toggle').setAttribute('aria-label', sfx.muted ? 'Enable sound effects' : 'Mute sound effects');
@@ -472,6 +486,7 @@ function revealPuzzle(development = false): void {
     cancelVoice('prepared capture expired before reveal');
     playerError = 'Prepare microphone again'; render(); return;
   }
+  kingVoice.stop(); unresolvedVoice = false;
   state = startRound(state, performance.now());
   playerError = ''; heard = '';
   render();

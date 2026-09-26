@@ -794,3 +794,29 @@ Per mate: **(100 + floor(remaining milliseconds / 100)) × new combo**, with rem
 Offline Black King voice generation was stopped before any API calls or assets: [Gradium July 2026 terms §6.2](https://gradium.ai/terms-of-service) restrict free plans to internal/non-commercial use. The hackathon account's entitlement to distribute generated audio publicly has not been established. Confirm the applicable paid-plan or written hackathon permission before generation. No voice/model was selected, no speech files were generated, and no runtime TTS was introduced. Existing text and local synthesized SFX remain; PTT stops SFX before capture.
 
 Draft QA: at 1280×720 and 1100×620, verify hidden READY → Prepare microphone → Start at 10.0 → think two seconds → hold/speak/release before zero. The timer must not reset on hold; remaining time freezes during processing. Check mate points against the formula, Retry rolls them back, Next conceals the next puzzle, all three solutions complete the run, and Play Again resets totals. Also wait to zero without speaking and verify timeout. No Black King spoken line is expected in this build.
+
+## Local Black King voice integration — redistribution approval pending
+
+Six pre-generated Gradium WAV files now provide cosmetic local character audio.
+Model `default`, catalog voice Garrett (`POBHtemksfWQbng0`), WAV 48 kHz/16-bit/mono;
+generated once through REST during private development. No runtime TTS or token
+requests were added. WAVs remain gitignored under `src/assets/black-king/` while
+rights are pending; a fresh checkout needs those six approved files to reproduce
+the voiced build. Never publish that build without confirming redistribution rights.
+
+READY alternates “Ten seconds. Show me.” and “Your move.” on successive attempts.
+Unresolved intent says “Speak clearly. Time is running.” only with time remaining.
+Legal non-mate: “Still standing.” Checkmate: “...well played.” Complete: “Fine. You win.”
+The selected line supplies both the local audio and subtitle. Timeout keeps its
+existing text-only reaction. Browser autoplay may suppress initial READY audio until
+interaction; no gameplay action waits for audio. Failed playback leaves subtitles.
+
+PTT/setup immediately cancels voice; playback is suppressed during capture. State
+transitions replace/discard old playback, including pending play promises. Interrupted
+lines never resume. The existing sound toggle mutes both SFX and character voice.
+
+Clean fallback ZIP: `release/backups/soniccheck-pre-tts-ten-seconds.zip`.
+Voiced evaluation ZIP: `release/soniccheck-itch-with-voices.zip` (also current
+`release/soniccheck-itch.zip`). Neither was deployed. Draft QA should check READY
+alternation, subtitle alignment, PTT interruption, mute, unresolved with time left,
+miss/mate/complete reactions, immediate Next/Retry/Start/Play Again, and missing audio.
