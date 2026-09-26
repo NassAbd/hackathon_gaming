@@ -6,6 +6,7 @@ class CaptureProcessor extends AudioWorkletProcessor {
     this.processCalls = 0;
     this.inputFrames = 0;
     this.samples = [];
+    this.emittedFrames = 0;
     this.chunkSize = Math.round(sampleRate * 0.08);
     this.port.onmessage = ({ data }) => {
       if (data === 'start') this.recording = true;
@@ -21,7 +22,9 @@ class CaptureProcessor extends AudioWorkletProcessor {
     const samples = new Float32Array(this.samples);
     let energy = 0;
     for (const value of samples) energy += value * value;
-    this.port.postMessage({ type: 'audio', samples, speech: Math.sqrt(energy / samples.length) > 0.01 }, [samples.buffer]);
+    const length = samples.length;
+    this.port.postMessage({ type: 'audio', samples, offset: this.emittedFrames, speech: Math.sqrt(energy / samples.length) > 0.01 }, [samples.buffer]);
+    this.emittedFrames += length;
     this.samples = [];
   }
   process(inputs) {
@@ -32,7 +35,7 @@ class CaptureProcessor extends AudioWorkletProcessor {
       let energy = 0;
       if (samples) for (const value of samples) energy += value * value;
       this.port.postMessage({ type: 'diagnostic', processCalls: this.processCalls,
-        inputFrames: this.inputFrames, rms: samples?.length ? Math.sqrt(energy / samples.length) : 0 });
+        inputFrames: this.inputFrames, sampleRate, channels: inputs[0]?.length ?? 0, rms: samples?.length ? Math.sqrt(energy / samples.length) : 0 });
     }
     if (this.recording) {
       if (samples) for (const sample of samples) {

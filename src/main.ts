@@ -1,3 +1,4 @@
+import { debugAudio } from './services/gradium/debug-audio';
 import { retryPuzzle } from './ui/retry';
 import { SessionLog } from './ui/session-log';
 import type { Completion } from './services/gradium/contracts';
@@ -46,7 +47,7 @@ root.innerHTML = `
       <p id="intent-status" role="status" aria-live="polite">Gemini requires a server API key. Fallback controls work without it.</p>
       <details id="intent-inspection"><summary>Inspect interpretation</summary><pre id="intent-trace">No request yet.</pre></details>
       <form id="move-form"><label for="move">Type a move <span>(e.g. a1 a8)</span></label><div class="input-row"><input id="move" autocomplete="off" spellcheck="false" placeholder="from → to" aria-describedby="controls-help" /><button id="submit" type="submit">Move ↗</button></div></form>
-<details id="session-log"><summary>Session log</summary><pre id="attempt-list">No voice attempts yet.</pre><div class="input-row"><button id="copy-log" type="button">Copy session log</button><button id="download-log" type="button">Download JSON</button></div><p id="export-status" role="status"></p><textarea id="session-json" readonly hidden aria-label="Session log JSON"></textarea></details><button id="debug-retry" class="primary" type="button">Restart current puzzle</button><p id="controls-help">Debug: start the clock, then type or click a move. Fallbacks cancel voice.</p><button id="debug-start" class="primary" type="button">Start round</button></section>`;
+<label><input id="record-pcm" type="checkbox" /> Record next voice stream locally (max 8s)</label><button id="download-wav" type="button">Download exact-stream WAV</button><p id="wav-status" role="status"></p><details id="session-log"><summary>Session log</summary><pre id="attempt-list">No voice attempts yet.</pre><div class="input-row"><button id="copy-log" type="button">Copy session log</button><button id="download-log" type="button">Download JSON</button></div><p id="export-status" role="status"></p><textarea id="session-json" readonly hidden aria-label="Session log JSON"></textarea></details><button id="debug-retry" class="primary" type="button">Restart current puzzle</button><p id="controls-help">Debug: start the clock, then type or click a move. Fallbacks cancel voice.</p><button id="debug-start" class="primary" type="button">Start round</button></section>`;
 
 function element<T extends HTMLElement>(id: string): T {
   const found = document.getElementById(id);
@@ -348,6 +349,18 @@ function retryCurrent(): void {
 }
 element('retry').addEventListener('click', retryCurrent);
 element('debug-retry').addEventListener('click', retryCurrent);
+element('record-pcm').addEventListener('change', () => {
+  debugAudio.enabled = element<HTMLInputElement>('record-pcm').checked;
+  if (!debugAudio.enabled) debugAudio.clear();
+  element('wav-status').textContent = debugAudio.enabled ? 'Next voice attempt will be retained locally. No additional upload.' : 'Local audio cleared.';
+});
+element('download-wav').addEventListener('click', () => {
+  if (!debugAudio.frames) { element('wav-status').textContent = 'No recorded PCM yet. Enable recording before a voice attempt.'; return; }
+  const url = URL.createObjectURL(new Blob([debugAudio.wav()], { type: 'audio/wav' }));
+  const link = document.createElement('a'); link.href = url; link.download = 'soniccheck-transmitted.wav'; link.click();
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
+  element('wav-status').textContent = `${debugAudio.frames} mono samples exported; same PCM bytes queued to Gradium (up to 8 seconds).`;
+});
 element('copy-log').addEventListener('click', async () => {
   const json = history.export();
   const area = element<HTMLTextAreaElement>('session-json'); area.value = json; area.hidden = false;

@@ -576,3 +576,63 @@ Generate the new ZIP (no API redeployment is necessary):
 ```sh
 VITE_API_BASE_URL=https://soniccheck-api.vercel.app/api npm run build:itch
 ```
+
+## Short audio-path diagnostic pass
+
+No STT settings, Gemini behavior or capture processing constraints were changed.
+Debug now shows the selected track label, actual track settings (unsupported fields
+are null), context/worklet rates and channel count, sent input format, provider
+ready sample rate, PCM peak/clipping count and chunk sample-offset discontinuities.
+Audio settings/counts also accompany session-log entries; device labels/IDs and
+raw audio are not included in session JSON.
+
+The current constraints request mono, echoCancellation=true and noiseSuppression=true;
+autoGainControl is unspecified, so the browser decides. These can suppress speaker
+echo/background noise, but can also alter speech transients or levels. A headset
+reduces acoustic feedback, so their benefit may be smaller; this pass leaves them
+unchanged rather than assuming either configuration improves recognition.
+
+A live local Chrome measurement on 2026-09-26 selected **Default — MacBook Pro
+Microphone (Built-in)**, not a headset. This isolated browser result does not establish
+which device the existing itch.io browser selected. The track reported 48000 Hz,
+16-bit, mono, EC/NS/AGC=true, latency=0.01 s. Context and worklet were 24000 Hz;
+Gradium setup was pcm_24000 and ready reported 24000 Hz. 27 chunks contained 51840
+samples (2.16 seconds), received=sent, zero observed sample-offset discontinuities,
+peak 0.16231, zero samples at/above full scale. No controlled speech was supplied:
+this is transport measurement, not a speech-quality listening test.
+
+48 kHz track → 24 kHz Web Audio graph entails browser resampling. Gradium's
+[current browser recipe](https://docs.gradium.ai/guides/recipes/browser-microphone-stt)
+also requests a 24 kHz context; its simple ScriptProcessor example is ~85.3 ms per
+2048-sample block, with AudioWorklet recommended for production. SonicCheck uses
+80 ms chunks (1920 samples at 24 kHz), with a final partial chunk flushed on commit.
+The recipe's clamp and negative×32768/positive×32767 scaling match our conversion;
+our DataView explicitly writes little-endian PCM16. Explicit PCM rate names are
+supported by the [STT protocol](https://docs.gradium.ai/api-reference/endpoint/stt-websocket).
+The [Web Audio specification](https://www.w3.org/TR/webaudio/#MediaStreamAudioSourceNode)
+requires resampling when source and context rates differ. Conversion alone is not
+evidence of faulty audio. Tests verify sample order across chunk boundaries and
+byte-for-byte equality between socket payload PCM and exported WAV data.
+
+For a headset test on the real itch build:
+
+1. Open Debug. Check **Record next voice stream locally (max 8s)** before holding.
+2. Close Debug, hold and speak one short known phrase, then release normally.
+3. Reopen Debug. Check DEVICE identifies the intended headset and inspect actual
+   track/context/worklet/provider rates, processing flags, peak and sample counts.
+4. Click **Download exact-stream WAV** before beginning another attempt. Listen
+   locally for speed/pitch errors, clipping or missing/distorted words. Export the
+   session JSON as well to correlate settings, transcript and model result.
+5. Uncheck recording to clear audio from memory. Reload also clears it.
+
+Recording is off by default and only available in Debug. It retains up to eight
+seconds of the exact base64-decoded PCM bytes successfully queued via WebSocket.send,
+then adds a mono PCM16 WAV header at the same sample rate. This is not a second mic
+recording, and no new upload occurs. Socket queue success is not proof of delivery
+to Gradium; counts/offsets cannot prove absence of upstream driver dropouts. Each
+new stream replaces the prior recording. No subjective clean-WAV claim has been
+made; the user's real headset phrase is still needed for that comparison.
+
+No concrete capture/encoding defect was found in this pass. Verify the actual
+itch device and listen to its exact-stream WAV before any further STT tuning.
+A new frontend ZIP is required for these diagnostics; no API redeployment is needed.

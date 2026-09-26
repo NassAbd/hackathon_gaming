@@ -25,7 +25,12 @@ export class SessionLog {
   }
   // Deliberately select fields. Never serialize capture/socket objects, URLs, errors or arbitrary payloads.
   private diagnostics(d: MicDiagnostics) {
-    return { permission: d.permission, streamActive: d.streamActive, context: d.context,
+    return { audio: { trackSettings: { sampleRate: d.trackSettings.sampleRate, sampleSize: d.trackSettings.sampleSize,
+      channelCount: d.trackSettings.channelCount, echoCancellation: d.trackSettings.echoCancellation,
+      noiseSuppression: d.trackSettings.noiseSuppression, autoGainControl: d.trackSettings.autoGainControl },
+      contextRate: d.contextRate, workletRate: d.workletRate, workletChannels: d.workletChannels,
+      inputFormat: d.inputFormat, providerRate: d.providerRate, receivedFrames: d.receivedFrames,
+      discontinuities: d.discontinuities, peak: d.peak, clippedSamples: d.clippedSamples }, permission: d.permission, streamActive: d.streamActive, context: d.context,
       tracks: d.tracks.map(t => ({ readyState: t.readyState, enabled: t.enabled, muted: t.muted })),
       worklet: d.worklet, processCalls: d.processCalls, inputFrames: d.inputFrames, rms: d.rms,
       socket: d.socket, ready: d.ready, sentChunks: d.sentChunks, sentFrames: d.sentFrames, messages: d.messages };

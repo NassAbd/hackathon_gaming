@@ -6,6 +6,17 @@ export class MicDiagnostics {
   streamActive: boolean | null = null;
   reference = 'none';
   tracks: { id: string; readyState: string; enabled: boolean; muted: boolean }[] = [];
+  deviceLabel = 'not measured';
+  trackSettings: Record<string, unknown> = {};
+  contextRate: number | null = null;
+  workletRate: number | null = null;
+  workletChannels: number | null = null;
+  inputFormat = 'not sent';
+  providerRate: number | null = null;
+  receivedFrames = 0;
+  discontinuities = 0;
+  peak = 0;
+  clippedSamples = 0;
   context = 'not created';
   graph = 'disconnected';
   worklet = 'not created';
@@ -39,6 +50,9 @@ export class MicDiagnostics {
       `MIC PERMISSION: ${this.permission}`,
       `STREAM: ${this.streamId} / active=${this.streamActive ?? 'unknown'} / reference=${this.reference}`,
       `TRACK: ${this.tracks.map(t => `${t.id}: ${t.readyState} / ${t.enabled ? 'enabled' : 'disabled'} / ${t.muted ? 'muted' : 'unmuted'}`).join('; ') || 'none'}`,
+      `DEVICE: ${this.deviceLabel} / SETTINGS: ${JSON.stringify(this.trackSettings)}`,
+      `RATES: context=${this.contextRate} / worklet=${this.workletRate} / channels=${this.workletChannels} / input_format=${this.inputFormat} / provider=${this.providerRate}`,
+      `PCM AUDIT: received=${this.receivedFrames} / sent=${this.sentFrames} / discontinuities=${this.discontinuities} / peak=${this.peak.toFixed(5)} / clipped=${this.clippedSamples}`,
       `AUDIO CONTEXT: ${this.context} / GRAPH: ${this.graph}`,
       `WORKLET: ${this.worklet} / process calls=${this.processCalls} / input frames=${this.inputFrames}`,
       `LAST FRAME AGE: ${this.lastFrameAt === null ? 'none' : `${Math.round(performance.now() - this.lastFrameAt)}ms`} / RMS: ${this.rms.toFixed(4)}`,

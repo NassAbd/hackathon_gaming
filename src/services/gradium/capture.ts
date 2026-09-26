@@ -51,6 +51,7 @@ export async function prepareMicrophone(signal: AbortSignal, onFailure: (error: 
     check();
     // Resume in the button's user-activation turn, before network/permission awaits.
     context = new AudioContext({ sampleRate: 24000 });
+    diagnostic.contextRate = context.sampleRate;
     diagnostic.context = context.state; diagnostic.event(`AudioContext created state=${context.state} rate=${context.sampleRate}`);
     const contextChanged = () => { snapshot(); diagnostic.event(`AudioContext statechange=${context?.state}`); };
     context.addEventListener?.('statechange', contextChanged);
@@ -78,6 +79,10 @@ export async function prepareMicrophone(signal: AbortSignal, onFailure: (error: 
       }, error => { diagnostic.permission = 'rejected'; diagnostic.error(`getUserMedia rejected: ${voiceFailure(error).code}`); throw error; }),
       new Promise<never>((_resolve, reject) => { permissionTimeout = setTimeout(() => { cancel(); reject(new VoiceFailure('timeout')); }, 15000); }),
     ]).finally(() => clearTimeout(permissionTimeout));
+    const audioTrack = media.getAudioTracks?.()[0] ?? media.getTracks()[0];
+    diagnostic.deviceLabel = audioTrack?.label || 'not exposed';
+    const settings = audioTrack?.getSettings?.() ?? {};
+    diagnostic.trackSettings = Object.fromEntries(['sampleRate', 'sampleSize', 'channelCount', 'echoCancellation', 'noiseSuppression', 'autoGainControl', 'latency'].map(key => [key, settings[key as keyof MediaTrackSettings] ?? null]));
     diagnostic.reference = 'strongly held by capture closures'; snapshot();
     for (const track of media.getTracks()) {
       for (const name of ['ended', 'mute', 'unmute']) {
@@ -107,9 +112,13 @@ export async function prepareMicrophone(signal: AbortSignal, onFailure: (error: 
       if (!isRecord(data) || cancelled) return;
       if (data.type === 'diagnostic' && typeof data.processCalls === 'number' && typeof data.inputFrames === 'number' && typeof data.rms === 'number') {
         if (diagnostic.processCalls === 0) diagnostic.event('First AudioWorklet process heartbeat');
+        if (typeof data.sampleRate === 'number') diagnostic.workletRate = data.sampleRate;
+        if (typeof data.channels === 'number') diagnostic.workletChannels = data.channels;
         diagnostic.worklet = 'active'; diagnostic.processCalls = data.processCalls; diagnostic.inputFrames = data.inputFrames;
         diagnostic.rms = data.rms; diagnostic.lastFrameAt = performance.now();
       } else if (data.type === 'audio' && data.samples instanceof Float32Array) {
+        if (typeof data.offset === 'number' && data.offset !== diagnostic.receivedFrames) diagnostic.discontinuities++;
+        diagnostic.receivedFrames += data.samples.length;
         diagnostic.audioChunks++;
         if (data.speech === true) speech?.();
         stream?.audio(data.samples);

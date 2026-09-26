@@ -1,3 +1,4 @@
+import { debugAudio } from './debug-audio';
 import { GRADIUM_ASR } from './region';
 import type { MicDiagnostics } from './diagnostics';
 import { isRecord } from '../gemini/contracts';
@@ -32,6 +33,7 @@ export class GradiumStream {
 
   constructor(token: string, sampleRate: number, private readonly onFailure: (error: VoiceFailure) => void,
     socketFactory: (url: string) => Socket = url => new WebSocket(url), private readonly timeoutMs = 5000, private readonly diagnostic?: MicDiagnostics) {
+    debugAudio.begin(sampleRate);
     this.ready = new Promise((resolve, reject) => { this.resolveReady = resolve; this.rejectReady = reject; });
     const url = new URL(GRADIUM_ASR); url.searchParams.set('token', token);
     this.socket = socketFactory(url.toString());
@@ -39,6 +41,7 @@ export class GradiumStream {
     this.timer = setTimeout(() => this.fail(new VoiceFailure('timeout')), timeoutMs);
     this.socket.addEventListener('open', () => {
       if (diagnostic) { diagnostic.socket = 'open'; diagnostic.event('Gradium WS open; sending setup'); }
+      if (diagnostic) diagnostic.inputFormat = `pcm_${sampleRate}`;
       this.send({ type: 'setup', model_name: 'default', input_format: `pcm_${sampleRate}`, json_config: {
         language: 'en',
         keywords: { words: ['rook', 'knight', 'bishop', 'queen', 'king', 'pawn', 'check', 'checkmate'], boost: 3 },
@@ -74,7 +77,7 @@ export class GradiumStream {
         case 'ready':
           if (this.initialized) throw new Error();
           this.initialized = true;
-          if (this.diagnostic) this.diagnostic.ready = true;
+          if (this.diagnostic) { this.diagnostic.ready = true; this.diagnostic.providerRate = typeof data.sample_rate === 'number' ? data.sample_rate : null; }
           clearTimeout(this.timer);
           this.timer = setTimeout(() => this.fail(new VoiceFailure('timeout')), 30000);
           this.resolveReady(); break;
@@ -98,8 +101,17 @@ export class GradiumStream {
     } catch { this.fail(new VoiceFailure('malformed')); }
   }
   audio(samples: Float32Array): void {
-    if (this.initialized && !this.finishing && this.send({ type: 'audio', audio: pcm16Base64(samples) }) && this.diagnostic) {
-      this.diagnostic.sentChunks++; this.diagnostic.sentFrames += samples.length;
+    if (!this.initialized || this.finishing) return;
+    const audio = pcm16Base64(samples);
+    if (this.send({ type: 'audio', audio })) {
+      debugAudio.append(audio);
+      if (this.diagnostic) {
+        this.diagnostic.sentChunks++; this.diagnostic.sentFrames += samples.length;
+        for (const value of samples) {
+          this.diagnostic.peak = Math.max(this.diagnostic.peak, Math.abs(value));
+          if (Math.abs(value) >= 1) this.diagnostic.clippedSamples++;
+        }
+      }
     }
   }
   finish(): Promise<string> {
