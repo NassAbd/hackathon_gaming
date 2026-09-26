@@ -1,3 +1,6 @@
+import { retryPuzzle } from './ui/retry';
+import { SessionLog } from './ui/session-log';
+import type { Completion } from './services/gradium/contracts';
 import { PushToTalk } from './ui/push-to-talk';
 import { microphoneDiagnostics } from './services/gradium/diagnostics';
 import { Chess } from 'chess.js';
@@ -29,7 +32,7 @@ root.innerHTML = `
       <div class="heard"><span class="eyebrow">HEARD</span><p id="heard">Your words will appear here.</p></div>
       <button id="talk" type="button" class="talk" aria-describedby="talk-help">HOLD TO SPEAK</button>
       <p id="talk-help">Hold, describe your move, then release. Speak when LISTENING appears.</p>
-      <button id="action" class="primary" type="button">Next puzzle →</button>
+      <div class="result-actions"><button id="retry" class="primary" type="button" hidden>Retry puzzle ↻</button><button id="action" class="primary" type="button">Next puzzle →</button></div>
       <p class="partners">Voice by Gradium · Intent by Gemini · Rules by chess.js</p>
     </section>
   </main>
@@ -43,7 +46,7 @@ root.innerHTML = `
       <p id="intent-status" role="status" aria-live="polite">Gemini requires a server API key. Fallback controls work without it.</p>
       <details id="intent-inspection"><summary>Inspect interpretation</summary><pre id="intent-trace">No request yet.</pre></details>
       <form id="move-form"><label for="move">Type a move <span>(e.g. a1 a8)</span></label><div class="input-row"><input id="move" autocomplete="off" spellcheck="false" placeholder="from → to" aria-describedby="controls-help" /><button id="submit" type="submit">Move ↗</button></div></form>
-<p id="controls-help">Debug: start the clock, then type or click a move. Fallbacks cancel voice.</p><button id="debug-start" class="primary" type="button">Start round</button></section>`;
+<details id="session-log"><summary>Session log</summary><pre id="attempt-list">No voice attempts yet.</pre><div class="input-row"><button id="copy-log" type="button">Copy session log</button><button id="download-log" type="button">Download JSON</button></div><p id="export-status" role="status"></p><textarea id="session-json" readonly hidden aria-label="Session log JSON"></textarea></details><button id="debug-retry" class="primary" type="button">Restart current puzzle</button><p id="controls-help">Debug: start the clock, then type or click a move. Fallbacks cancel voice.</p><button id="debug-start" class="primary" type="button">Start round</button></section>`;
 
 function element<T extends HTMLElement>(id: string): T {
   const found = document.getElementById(id);
@@ -58,6 +61,35 @@ const intentSession = new IntentSession();
 const names = { k: 'king', q: 'queen', r: 'rook', b: 'bishop', n: 'knight', p: 'pawn' };
 const glyphs = { k: '♚', q: '♛', r: '♜', b: '♝', n: '♞', p: '♟' };
 let state = createGame();
+let puzzleInitial = state;
+let runIndex = 1, roundIndex = 1, retryIndex = 0;
+let activeAttempt: number | null = null;
+const history = new SessionLog({ appVersion: '0.1.0', userAgent: navigator.userAgent, language: navigator.language, viewport: `${innerWidth}x${innerHeight}` });
+function finishAttempt(result: Completion, id = activeAttempt): void {
+  if (id === null) return;
+  history.finish(id, result, microphoneDiagnostics);
+  if (activeAttempt === id) activeAttempt = null;
+  renderHistory();
+}
+function renderHistory(): void {
+  element('attempt-list').textContent = history.attempts.map(a => `Attempt ${a.index} · ${a.puzzle.name} · run ${a.run} / round ${a.round} / retry ${a.retry}
+Transcript: ${a.transcript || '—'}
+Proposal: ${JSON.stringify(a.proposal)}
+Result: ${a.result ?? 'in progress'} · SAN: ${a.san ?? '—'}
+STT: ${a.telemetry.transcriptAvailable === null || a.telemetry.speechCommitted === null ? '—' : Math.round(a.telemetry.transcriptAvailable - a.telemetry.speechCommitted)} ms · Intent: ${a.telemetry.intentResolved === null || a.telemetry.intentRequestStart === null ? '—' : Math.round(a.telemetry.intentResolved - a.telemetry.intentRequestStart)} ms`).join('\n\n') || 'No voice attempts yet.';
+}
+function prepareLogged(signal: AbortSignal, failed: (error: ReturnType<typeof voiceFailure>) => void): Promise<SpeechCapture> {
+  const id = history.begin(state, runIndex, roundIndex, retryIndex); activeAttempt = id; renderHistory();
+  return prepareMicrophone(signal, error => {
+    if (activeAttempt !== id) return;
+    if (!voiceSession.pending) finishAttempt({ result: error.code === 'timeout' ? 'timeout' : 'provider_failure', errorCode: error.code }, id);
+    failed(error);
+  }).catch(error => {
+    const failure = voiceFailure(error);
+    finishAttempt({ result: signal.aborted ? 'cancelled' : failure.code === 'timeout' ? 'timeout' : 'provider_failure', errorCode: failure.code }, id);
+    throw error;
+  });
+}
 let selected: Square | null = null;
 let armedCapture: SpeechCapture | null = null;
 let microphoneSetup: AbortController | null = null;
@@ -70,7 +102,12 @@ const voiceSession = new VoiceSession({
   now: () => performance.now(),
   resolve: requestIntent,
   changed: () => { if (state.phase === 'playing') playerError = 'Didn’t catch that — try again'; render(); },
+  completed: (result, transcript, telemetry) => {
+    if (activeAttempt !== null) history.update(activeAttempt, transcript, telemetry, microphoneDiagnostics);
+    finishAttempt(result);
+  },
   inspect: (message, transcript, timestamps, proposal) => {
+    if (activeAttempt !== null) { history.update(activeAttempt, transcript, timestamps, microphoneDiagnostics); renderHistory(); }
     element('voice-status').textContent = message;
     if (transcript) { intentInput.value = transcript; heard = transcript; }
     if (timestamps.intentResolved !== null || (timestamps.speechCommitted !== null && !voiceSession.pending)) playerError = 'Didn’t catch that — try again';
@@ -94,7 +131,7 @@ const talk = new PushToTalk({
   allowed: () => ['ready', 'playing'].includes(state.phase) && !voiceSession.pending && !intentSession.pending && !microphoneSetup && !armedCapture,
   prepare: signal => {
     playerError = ''; heard = '';
-    return prepareMicrophone(signal, error => {
+    return prepareLogged(signal, error => {
       playerError = playerFailure(error);
       if (!voiceSession.pending) cancelVoice('capture failure');
       render();
@@ -104,7 +141,7 @@ const talk = new PushToTalk({
     state = startRound(state, performance.now());
     voiceSession.listen(capture);
   },
-  commit: async () => { heard = microphoneDiagnostics.transcript || heard; await voiceSession.commit(); if (state.phase === 'playing') playerError = 'Didn’t catch that — try again'; },
+  commit: async () => { const round = roundIndex; heard = microphoneDiagnostics.transcript || heard; await voiceSession.commit(); if (round === roundIndex && state.phase === 'playing') playerError = 'Didn’t catch that — try again'; },
   cancel: () => cancelVoice('hold cancelled'),
   changed: () => render(),
   failed: error => { playerError = playerFailure(error); render(); },
@@ -116,6 +153,7 @@ function playerFailure(error: unknown): string {
   return 'Didn’t catch that — try again';
 }
 function cancelVoice(reason = 'fallback or user cancellation'): void {
+  finishAttempt({ result: state.outcome === 'timeout' ? 'timeout' : 'cancelled' });
   if (microphoneSetup || armedCapture || voiceSession.listening || voiceSession.pending) microphoneDiagnostics.event(`cancelVoice: ${reason}; phase=${state.phase}`);
   talk.reset();
   microphoneSetup?.abort(); microphoneSetup = null;
@@ -210,6 +248,8 @@ function render(): void {
   element<HTMLButtonElement>('microphone').textContent = microphoneSetup ? 'Connecting…' : armedCapture ? 'Microphone ready' : voiceSession.listening ? 'Listening…' : 'Enable microphone';
   element<HTMLButtonElement>('voice-send').disabled = !voiceSession.listening;
   element<HTMLButtonElement>('voice-cancel').disabled = !microphoneSetup && !armedCapture && !voiceSession.listening && !voiceSession.pending;
+  element('retry').hidden = state.phase !== 'result';
+  element<HTMLButtonElement>('debug-retry').disabled = state.phase === 'complete';
   action.disabled = microphoneSetup !== null;
   action.hidden = state.phase === 'playing' || state.phase === 'ready';
   action.textContent = state.phase === 'ready' ? 'Start round →' : state.phase === 'complete' ? 'Play again ↻' : state.puzzleIndex === PUZZLES.length - 1 ? 'See results →' : 'Next puzzle →';
@@ -223,7 +263,7 @@ element('microphone').addEventListener('click', async () => {
   const setup = new AbortController(); microphoneSetup = setup;
   element('voice-status').textContent = 'Preparing microphone and Gradium connection…'; render();
   try {
-    const capture = await prepareMicrophone(setup.signal, error => {
+    const capture = await prepareLogged(setup.signal, error => {
       if (microphoneSetup !== setup && !armedCapture && !voiceSession.listening && !voiceSession.pending) return;
       element('voice-status').textContent = error.message;
       if (!voiceSession.pending) cancelVoice('capture failure callback');
@@ -284,8 +324,8 @@ action.addEventListener('click', () => {
     element('intent-trace').textContent = 'No request yet.';
   }
   if (state.phase === 'ready') state = startRound(state, performance.now());
-  else if (state.phase === 'complete') state = createGame();
-  else state = advance(state);
+  else if (state.phase === 'complete') { state = createGame(); puzzleInitial = state; runIndex++; roundIndex++; retryIndex = 0; }
+  else { state = advance(state); if (state.phase === 'ready') { puzzleInitial = state; roundIndex++; retryIndex = 0; } }
   if (state.phase === 'playing' && armedCapture) {
     const capture = armedCapture; armedCapture = null; voiceSession.listen(capture);
   }
@@ -293,6 +333,36 @@ action.addEventListener('click', () => {
   input.value = '';
   render();
   if (state.phase === 'playing') (intentInput.value.trim() ? element('resolve') : input).focus();
+});
+function retryCurrent(): void {
+  if (state.phase === 'complete') return;
+  state = retryPuzzle(puzzleInitial, () => { cancelVoice('retry puzzle'); intentSession.cancel(); });
+  pointer = null; keyboardHeld = false;
+  roundIndex++; retryIndex++;
+  playerError = ''; heard = ''; selected = null; input.value = ''; intentInput.value = '';
+  element('voice-status').textContent = 'Ready for a new attempt.';
+  element('voice-trace').textContent = 'No voice attempt yet.';
+  element('intent-status').textContent = 'Ready for a new attempt.';
+  element('intent-trace').textContent = 'No request yet.';
+  render();
+}
+element('retry').addEventListener('click', retryCurrent);
+element('debug-retry').addEventListener('click', retryCurrent);
+element('copy-log').addEventListener('click', async () => {
+  const json = history.export();
+  const area = element<HTMLTextAreaElement>('session-json'); area.value = json; area.hidden = false;
+  try {
+    await navigator.clipboard.writeText(json);
+    element('export-status').textContent = 'Session JSON copied.';
+  } catch {
+    area.focus(); area.select();
+    element('export-status').textContent = 'Clipboard unavailable. Copy the selected JSON or Download JSON.';
+  }
+});
+element('download-log').addEventListener('click', () => {
+  const url = URL.createObjectURL(new Blob([history.export()], { type: 'application/json' }));
+  const link = document.createElement('a'); link.href = url; link.download = 'soniccheck-session.json';
+  link.click(); setTimeout(() => URL.revokeObjectURL(url), 1000);
 });
 element('debug-start').addEventListener('click', () => action.click());
 element('debug-toggle').addEventListener('click', () => { debugOpen = !debugOpen; render(); });

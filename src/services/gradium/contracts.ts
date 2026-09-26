@@ -38,3 +38,11 @@ export interface VoiceTelemetry {
   moveCommitted: number | null;
   remainingMs: number | null;
 }
+
+export type AttemptResult = 'mate' | 'legal_non_mate' | 'unresolved' | 'timeout' | 'cancelled' | 'provider_failure' | 'empty' | 'illegal';
+export interface Completion {
+  result: AttemptResult;
+  resolverStatus?: 'resolved' | 'unresolved' | 'error';
+  proposal?: import('../../contracts').Candidate;
+  errorCode?: string;
+}

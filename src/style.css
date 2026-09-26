@@ -69,3 +69,8 @@ summary { cursor: pointer; font-size: 12px; }
 @media (max-height: 650px) { header { height: 62px; } .arena { height: calc(100% - 62px); } .board-stage { width: min(100%, calc(100dvh - 142px)); } .play-panel { padding: 18px; } .player-feedback { min-height: 116px; padding-top: 6px; } .heard { height: 78px; margin: 8px 0 12px; } .talk { padding: 15px 8px; } .partners { margin-top: 10px; } }
 @media (max-width: 750px) { #app { height: auto; padding: 0 16px 24px; } .mode { display: none; } .arena { display: flex; flex-direction: column; gap: 20px; padding-top: 18px; } .board-stage { width: min(100%, 460px); } .play-panel { width: 100%; max-width: 460px; } }
 @media (prefers-reduced-motion: reduce) { *, *::before, *::after { animation: none !important; transition: none !important; } }
+.result-actions { display: flex; gap: 8px; }
+.result-actions > button { flex: 1; min-width: 0; font-size: 13px; }
+#attempt-list { max-height: 220px; overflow: auto; }
+#session-log { margin: 16px 0; }
+#session-json { width: 100%; height: 180px; background: #101916; color: #edf2e9; font: 11px monospace; }

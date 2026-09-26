@@ -514,3 +514,65 @@ Manual itch.io release test (do not auto-deploy):
    coordinate and board fallbacks. Close it to restore the clean player view.
 
 The new ZIP is required; the Vercel API does not need redeployment for this pass.
+
+## Retry puzzle and QA session log
+
+**Retry puzzle** appears beside Next puzzle / See results after a result. It restores
+that puzzle's exact initial FEN, ready state and full five-second timer, clearing
+selection, result, transcript and interaction status. It aborts pending voice and
+typed requests and resets push-to-talk ownership before restoring state. Debug also
+provides **Restart current puzzle**, including during processing, for stale-result QA.
+
+Retry rolls score, combo and solved count back to their values on entry to the
+current puzzle. Solving again replaces that puzzle's contribution; it cannot add a
+second reward. Earlier puzzles remain credited. This also lets a retry recover from
+a miss without permanently losing the incoming combo. Next puzzle and Play again
+retain their existing behavior. History survives retries, next puzzle and new runs;
+reloading/closing the page clears it. No persistence, backend or analytics is added.
+
+Open **Debug → Session log** (or `?debug=1`) for a compact attempt list. Every voice
+setup/hold attempt, including cancelled or failed setup, gets a unique index.
+Typed and coordinate moves remain fallbacks and are not presented as voice attempts.
+Use **Copy session log** for structured JSON, or **Download JSON** for a local file.
+If iframe clipboard access fails, the complete JSON is displayed and selected for
+manual copying. The download is a second fallback. Export takes a snapshot at click.
+
+Schema version 1 includes:
+
+- Session start, app version, browser user agent/language and initial viewport.
+- Attempt index and wall-clock start/end; run, round and retry indices; puzzle ID,
+  name and the expected pre-attempt FEN.
+- Latest transcript, Gradium final transcript (null if unavailable), candidate,
+  resolver status, chess validation outcome and chess.js-generated SAN if executed.
+- Structured result: mate, legal_non_mate, unresolved, illegal, empty, timeout,
+  cancelled or provider_failure; safe error code when available.
+- Existing monotonic telemetry and remaining milliseconds captured at commit;
+  derived speech, final-transcription wait, intent, validation and commit-to-move
+  durations. Unreached stages are null, never invented zero-duration measurements.
+- Selected microphone/Gradium state: permission, track state, context, worklet,
+  sample/frame counts, RMS, socket readiness and message count at the snapshot.
+
+Only selected fields enter the log. It does not serialize raw errors, provider
+payloads, URLs, headers, API keys, temporary tokens, device IDs or microphone audio.
+Speech duration retains its existing RMS-threshold definition. SAN reconstruction
+uses chess.js against the recorded FEN; it never asks Gemini for SAN or changes play.
+
+Manual QA after uploading the new ZIP to the existing itch Draft:
+
+1. Hold/speak/release “rook to a eight”; inspect HEARD and the result.
+2. Retry puzzle; confirm the rook returns to a1, timer shows 5.0s and the score
+   returns to the puzzle-entry value. Try “move the rook to the back rank”.
+3. Retry and try a third phrase. For unresolved input, use Debug Restart if you
+   want a fresh five-second attempt without waiting for the result timeout.
+4. Open Debug → Session log. Confirm three separate entries with the same puzzle
+   FEN and distinct retry indices. Copy or download and inspect all three entries.
+5. During another UNDERSTANDING state, use Debug Restart. A late response must not
+   move a piece or alter the restored score. Next puzzle must still advance once.
+6. Check both 1280×720 and 1100×620: Retry and Next remain visible, and session
+   diagnostics remain confined to the debug drawer.
+
+Generate the new ZIP (no API redeployment is necessary):
+
+```sh
+VITE_API_BASE_URL=https://soniccheck-api.vercel.app/api npm run build:itch
+```

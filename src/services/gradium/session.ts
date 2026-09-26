@@ -3,7 +3,7 @@ import type { GameState } from '../../contracts';
 import { submitMove } from '../../game';
 import type { Resolver } from '../gemini/session';
 import { INTENT_MESSAGES } from '../gemini/contracts';
-import type { SpeechCapture, VoiceTelemetry } from './contracts';
+import type { SpeechCapture, VoiceTelemetry, Completion } from './contracts';
 import { VoiceFailure, voiceFailure } from './contracts';
 
 interface Access {
@@ -13,6 +13,7 @@ interface Access {
   resolve: Resolver;
   inspect: (message: string, transcript: string, telemetry: VoiceTelemetry, proposal?: unknown) => void;
   changed?: () => void;
+  completed?: (result: Completion, transcript: string, telemetry: VoiceTelemetry) => void;
 }
 const emptyTelemetry = (): VoiceTelemetry => ({ speechStart: null, speechCommitted: null, transcriptAvailable: null, intentRequestStart: null, intentResolved: null, validationComplete: null, moveCommitted: null, remainingMs: null });
 
@@ -62,9 +63,10 @@ export class VoiceSession {
     const state = this.access.getState();
     const now = this.access.now();
     if (state.phase !== 'playing' || state.deadline === null || now >= state.deadline || state.fen !== this.snapshot?.fen || state.deadline !== this.snapshot.deadline) {
+      this.access.completed?.({ result: 'timeout' }, '', { ...this.telemetry });
       this.cancel(); this.report('Speech was not committed before the round deadline.'); return;
     }
-    if (this.telemetry.speechStart === null) { this.cancel(); this.report(new VoiceFailure('empty').message); return; }
+    if (this.telemetry.speechStart === null) { this.access.completed?.({ result: 'empty' }, '', { ...this.telemetry }); this.cancel(); this.report(new VoiceFailure('empty').message); return; }
     const capture = this.capture;
     const controller = new AbortController(); this.controller = controller;
     this.telemetry.speechCommitted = now;
@@ -95,10 +97,18 @@ export class VoiceSession {
         this.telemetry.validationComplete = this.access.now();
         this.access.setState(next);
         if (next.fen !== before.fen) this.telemetry.moveCommitted = this.access.now();
+        this.access.completed?.({ result: next.fen !== before.fen ? next.outcome === 'mate' ? 'mate' : 'legal_non_mate' : 'illegal', resolverStatus: 'resolved', proposal: result.candidate }, transcript, { ...this.telemetry });
         this.report(next.feedback, transcript, result.candidate);
-      } else this.report(INTENT_MESSAGES[result.status === 'unresolved' ? 'unresolved' : result.code], transcript);
+      } else {
+        this.access.completed?.({ result: result.status === 'unresolved' ? 'unresolved' : result.code === 'timeout' ? 'timeout' : 'provider_failure', resolverStatus: result.status, ...(result.status === 'error' ? { errorCode: result.code } : {}) }, transcript, { ...this.telemetry });
+        this.report(INTENT_MESSAGES[result.status === 'unresolved' ? 'unresolved' : result.code], transcript);
+      }
     } catch (error) {
-      if (current()) { this.resume(); this.report(voiceFailure(error).message, transcript); }
+      if (current()) {
+        this.resume(); const failure = voiceFailure(error);
+        this.access.completed?.({ result: failure.code === 'empty' ? 'empty' : failure.code === 'timeout' ? 'timeout' : 'provider_failure', errorCode: failure.code }, transcript, { ...this.telemetry });
+        this.report(failure.message, transcript);
+      }
     } finally {
       if (this.controller === controller) {
         this.controller = null; this.capture?.cancel(); this.capture = null; this.held = null;
