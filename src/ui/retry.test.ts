@@ -25,14 +25,15 @@ it('retry resets hold state and blocks a late Gemini result even with the same F
   const voice = new VoiceSession({ getState: () => state, setState: next => { state = next; }, now: () => 100,
     inspect: vi.fn(), resolve: () => new Promise(resolve => { resolveIntent = resolve; }) });
   const capture = { start: (speech: () => void) => speech(), cancel: vi.fn(), finish: async () => 'rook to a eight' };
-  const start = vi.fn(() => { state = startRound(state, 0); voice.listen(capture); });
+  const start = vi.fn(() => { voice.listen(capture); });
   const talk = new PushToTalk({ allowed: () => true, prepare: async () => capture, start, commit: () => voice.commit(), cancel: () => voice.cancel(), changed: vi.fn(), failed: vi.fn() });
+  state = startRound(state, 0);
   await talk.press(); const pending = talk.release(); await Promise.resolve();
   state = retryPuzzle(initial, () => { talk.reset(); voice.cancel(); });
   const restored = state; resolveIntent({ status: 'resolved', candidate: { from: 'a1', to: 'a8' } }); await pending;
   expect(state).toBe(restored); expect(state).toEqual(initial); expect(talk.phase).toBe('idle');
   for (let i = 0; i < 3; i++) {
-    await talk.press(); state = retryPuzzle(initial, () => { talk.reset(); voice.cancel(); });
+    state = startRound(state, 0); await talk.press(); state = retryPuzzle(initial, () => { talk.reset(); voice.cancel(); });
   }
   expect(start).toHaveBeenCalledTimes(4); expect(talk.phase).toBe('idle');
 });

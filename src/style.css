@@ -112,3 +112,7 @@ summary { cursor: pointer; font-size: 12px; }
 #score-gain { opacity: 0; }
 @media (prefers-reduced-motion: reduce) { #score-gain { opacity: 1; } }
 [data-phase='complete'] #score-gain, [data-phase='complete'] .side { display: none; }
+
+.board.concealed { display: grid; place-items: center; grid-template: 1fr / 1fr; background: #18251f; border: 1px solid #35463a; color: #d8f18a; font-size: 38px; font-weight: 800; letter-spacing: 4px; }
+#start-puzzle:disabled { opacity: .45; cursor: default; }
+#prepare { margin: 0 0 8px; }

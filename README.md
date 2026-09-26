@@ -34,15 +34,16 @@ is preserved. No separate hackathon resources were found. A Gradium key became a
 implementation; live token issuance, microphone initialization and STT readiness
 were verified. The user subsequently confirmed a working spoken end-to-end flow; their observed timings are recorded in the production-readiness report. Uploaded iframe testing is still outstanding.
 
-1. Study the board. Hold **HOLD TO SPEAK** with a pointer (or focus it and hold
-   Space/Enter). Keep holding through microphone setup; speak when **LISTENING**
-   appears. The first five-second round starts only once capture is ready.
-2. Release to send the utterance. **HEARD** displays Gradium's text and
-   **UNDERSTANDING** shows processing. Remaining time is saved at release.
-3. Checkmate adds `100 × new combo` points; three consecutive wins total 600.
-   A legal non-mating move ends the round and resets the combo. Ambiguous/failed
-   recognition leaves the board unchanged and allows retry while time remains.
-4. Press **Next puzzle**; hold to begin the next round. **Play again** resets the run.
+1. Press **PREPARE MIC** and grant permission. The puzzle stays hidden while
+   microphone/audio/socket setup completes. Wait for **MIC READY**.
+2. Press **START PUZZLE**. The board appears and the five-second timer starts
+   together. Thinking time counts. Hold **HOLD TO SPEAK** (pointer or Space/Enter),
+   speak, and release before zero.
+3. Remaining time is captured on release while transcription/intent finish.
+   Checkmate still adds `100 × new combo` points; no speed multiplier was added.
+4. **Next puzzle** returns to hidden READY. Prepare and Start again.
+   **Retry** restores the puzzle-entry score/solved/combo snapshot, replacing rather
+   than accumulating its reward. **Play again** returns to hidden Puzzle 1.
 
 The player view is composed for 1280×720 and 1100×620 with no required scrolling.
 **Debug** opens a scrollable drawer; `?debug=1` opens it on load. It retains legacy
@@ -52,12 +53,11 @@ Board clicks are enabled while this drawer is open. Debug Start begins the usual
 five-second clock; Close returns to the player view. No provider configuration,
 semantic prompt/model, API contract, chess rules or puzzle fixtures changed.
 
-Release during setup cancels without starting a ready round. Pointer cancellation,
+Release during a fallback setup cancels without resetting the active round. Pointer cancellation,
 lost capture, leaving the window while held, hidden page and keyboard focus loss
 cancel rather than submit. Late setup results are disposed. Release commits exactly
 once through the existing VoiceSession, including its time reservation and stale
-response guards. First-time permission dialogs can interrupt a hold; grant access
-and hold again. Retry setup during an already active round uses its remaining time.
+response guards. First-time permission is handled by Prepare before Start. Retry setup during an already active round uses its remaining time.
 
 Descriptions for the current pack:
 
@@ -174,8 +174,8 @@ coordinate (`a1 b3`), legal miss (`a1 a2`), timeout, 600-point run, and replay.
 1. Configure `GRADIUM_API_KEY` in ignored `.env.local` and restart the server.
    Keep the existing `GEMINI_API_KEY`. Never paste permanent keys into the browser.
 2. Press **Enable microphone** before **Start round**. Grant microphone permission.
-   Audio hardware opens, but no samples are streamed until the round starts.
-3. Start, speak, and press **Send speech** strictly before the deadline. This explicit
+   Audio hardware opens, but no samples are streamed until push-to-talk starts.
+3. Start, hold to speak, and release (or use **Send speech**) strictly before the deadline. This explicit
    commit avoids guessing when a player has finished speaking. The microphone is
    stopped; Gradium finishes transcription, then the existing Gemini resolver runs.
 4. **Cancel voice** or any typed/coordinate/board move cancels the attempt. A fresh
@@ -698,3 +698,46 @@ checks exercised full run/replay, reduced motion, retry/export and mocked voice
 unresolved/retry/mate. Those do not replace a live headset/iframe rehearsal of the
 new build. Provider/capture/game/API files and SPEC remain unchanged in this pass.
 Particles, delayed progression and sounds during recording were deliberately omitted.
+
+
+## Reveal-started clock release
+
+This flow supersedes older hold-to-start QA notes below. Ready omits board squares,
+piece accessibility labels and the identifying puzzle title entirely; it is not a
+blurred position. First exposure and the guarded deadline start in one synchronous
+UI action. A 120 ms fade does not delay input and is skipped for reduced motion.
+Push-to-talk never starts or resets the deadline. Preparation acquires the existing
+microphone graph and provider readiness before Start; PCM streaming starts only on
+hold. Prepared connections retain their existing 30-second expiry. The UI retires an
+unused prepared capture after 20 seconds, leaving a full round plus margin; prepare
+again before revealing. After an unsuccessful committed attempt, a fresh connection uses the
+remaining round time as before. No provider/capture settings changed.
+
+Debug Start explicitly bypasses microphone readiness for typed/coordinate QA.
+Debug history and exports remain available only in the drawer. Retry restores the
+snapshot and invalidates pending work; it also returns to hidden READY for consistency.
+Scoring remains combo-only: thinking now consumes eligibility time, not a new bonus.
+Remote latency still preserves the remainder captured at a valid release.
+
+The abandoned Gemini Live STT adapter, tests, manifest, reports, runner/npm command
+and experiment docs were removed. Real local WAVs remain untouched under
+`evals/stt/audio/` and ignored by Git. Semantic evals and production debug WAV/session
+exports are preserved. No new dependency or API deployment is needed.
+
+Draft QA (upload manually; never auto-deploy):
+1. At 1280×720 and 1100×620, verify hidden READY, generic title, five seconds,
+   no piece labels, and visible Prepare/Start. Prepare and grant permission.
+2. Start: board appears and timer falls immediately. Think for one second, then
+   hold; verify the timer does not reset. Say “rook to a eight” and release before
+   zero. Verify frozen time during UNDERSTANDING and validated Ra8#.
+3. Retry: score rolls back; prepare/start and solve again without adding a second
+   reward. Let a round expire while holding; a late release must not move.
+4. Next: next position stays hidden until its own Start. Complete all three and
+   inspect final results; Play again must show hidden Puzzle 1.
+5. Test permission denial, prepared-connection expiry, silence and retry. Debug
+   Start + coordinates remain available without microphone setup.
+6. Debug Restart during UNDERSTANDING must reject the stale response. Inspect
+   latency/session exports and exact-stream WAV export. Test reduced motion:
+   no reveal movement/fade; timing and controls still work.
+
+Build: `VITE_API_BASE_URL=https://soniccheck-api.vercel.app/api npm run build:itch`.
