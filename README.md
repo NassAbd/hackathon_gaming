@@ -3,7 +3,7 @@
 A voice-first arcade chess puzzle game in development for the {Tech: Europe}
 AI Gaming Hack. This slice adds **real microphone input through Gradium STT**, feeding the existing
 Gemini intent resolver and deterministic chess.js game. Typed intent, coordinate
-input, and board controls remain available. There is no TTS.
+input, and board controls remain available in debug mode. There is no TTS.
 
 ## Setup and local play
 
@@ -34,19 +34,36 @@ is preserved. No separate hackathon resources were found. A Gradium key became a
 implementation; live token issuance, microphone initialization and STT readiness
 were verified. The user subsequently confirmed a working spoken end-to-end flow; their observed timings are recorded in the production-readiness report. Uploaded iframe testing is still outstanding.
 
-1. Study the position. Optionally prepare a natural-language description before
-   pressing **Start round**.
-2. Press **Resolve** within five seconds, or select a piece and destination, or
-   type coordinates such as `a1 a8` / `a1a8` and press Enter in the coordinate field.
-3. Any legal checkmate wins. Wins add `100 × new combo` points; three consecutive
-   wins total 600. A legal non-mating move ends the round and resets the combo.
-4. Press **Next puzzle**, then **Start round**. After results, **Play again** resets.
+1. Study the board. Hold **HOLD TO SPEAK** with a pointer (or focus it and hold
+   Space/Enter). Keep holding through microphone setup; speak when **LISTENING**
+   appears. The first five-second round starts only once capture is ready.
+2. Release to send the utterance. **HEARD** displays Gradium's text and
+   **UNDERSTANDING** shows processing. Remaining time is saved at release.
+3. Checkmate adds `100 × new combo` points; three consecutive wins total 600.
+   A legal non-mating move ends the round and resets the combo. Ambiguous/failed
+   recognition leaves the board unchanged and allows retry while time remains.
+4. Press **Next puzzle**; hold to begin the next round. **Play again** resets the run.
+
+The player view is composed for 1280×720 and 1100×620 with no required scrolling.
+**Debug** opens a scrollable drawer; `?debug=1` opens it on load. It retains legacy
+Enable/Start/Send controls, typed intent, coordinates, microphone lifecycle,
+Gradium state, raw transcript, intent proposal, validation and latency telemetry.
+Board clicks are enabled while this drawer is open. Debug Start begins the usual
+five-second clock; Close returns to the player view. No provider configuration,
+semantic prompt/model, API contract, chess rules or puzzle fixtures changed.
+
+Release during setup cancels without starting a ready round. Pointer cancellation,
+lost capture, leaving the window while held, hidden page and keyboard focus loss
+cancel rather than submit. Late setup results are disposed. Release commits exactly
+once through the existing VoiceSession, including its time reservation and stale
+response guards. First-time permission dialogs can interrupt a hold; grant access
+and hold again. Retry setup during an already active round uses its remaining time.
 
 Descriptions for the current pack:
 
 - Rook: “put the rook on the back rank”
-- Queen: “move the queen from g6 to g7” / “la dame en g7”
-- Knight: “put the horse on f7” / “le cavalier en f7”
+- Queen: “move the queen from g6 to g7”
+- Knight: “put the horse on f7”
 
 Typed requests retain their existing five-second deadline behavior. Voice uses the
 commit-time reservation described below. Click and coordinate controls remain
@@ -152,7 +169,7 @@ Inspect the proposal and chess.js-generated SAN. With no key, verify the clear
 configuration message and use coordinates to complete the pack. Test an illegal
 coordinate (`a1 b3`), legal miss (`a1 a2`), timeout, 600-point run, and replay.
 
-## Microphone / Gradium slice
+## Microphone / Gradium slice (legacy debug controls)
 
 1. Configure `GRADIUM_API_KEY` in ignored `.env.local` and restart the server.
    Keep the existing `GEMINI_API_KEY`. Never paste permanent keys into the browser.
@@ -374,7 +391,7 @@ Official documentation checked before implementation:
 
 ## Microphone lifecycle diagnostics and region fix
 
-The always-visible development panel reports permission acquisition, MediaStream
+The debug drawer’s development panel reports permission acquisition, MediaStream
 identity/active state, strongly held capture reference, track state/enabled/muted,
 AudioContext state, graph connections, worklet callback/input-frame counts, RMS,
 PCM chunk/sample counts, WebSocket state, protocol readiness, message counts/types,
@@ -440,7 +457,8 @@ The graph requests 24 kHz and declares its actual rate; no resampling was added.
 
 After uploading the new ZIP to the itch.io Draft, test each phrase below twice in
 roughly the same quiet setting and at the same microphone distance. For each trial,
-Enable microphone, Start round, speak, then Send speech before the deadline.
+hold the voice button, wait for LISTENING, speak, and release before the deadline.
+Open Debug to inspect detailed telemetry.
 Use Replay as needed. Read/copy **TRANSCRIPT** from microphone diagnostics before
 starting the next attempt; judge the raw Gradium text, not Gemini's move or success.
 These are STT probes: some intentionally do not describe a legal move on the puzzle.
@@ -466,3 +484,33 @@ Build the updated ZIP with:
 ```sh
 VITE_API_BASE_URL=https://soniccheck-api.vercel.app/api npm run build:itch
 ```
+
+## Player experience release check
+
+Baseline before UX changes: git commit `b196609`. Automated verification includes
+hold preparation/release/cancellation, duplicate release, late async completion,
+and a real VoiceSession integration with a committed move after the original
+clock deadline. Existing unresolved, illegal and stale-result tests remain.
+Local Chrome production-build checks at 1280×720 and 1100×620 found no page scroll,
+and exercised debug fallback → checkmate → next puzzle. A simulated browser test
+also exercised hold → transcript → unresolved → retry → checkmate and pointer
+cancellation with no browser errors. These mocks do not establish live mic/STT
+behavior in the uploaded iframe.
+
+Manual itch.io release test (do not auto-deploy):
+
+1. Upload `release/soniccheck-itch.zip` to the existing Draft. Reload at 1280×720,
+   then ~1100×620; verify board, timer, score, voice button and next action fit.
+2. Hold the main button, grant permission if needed, retry the hold if the dialog
+   interrupted it. Wait for LISTENING, say “rook to a eight”, release before zero.
+3. Check HEARD, UNDERSTANDING, frozen remaining time, then CHECKMATE and score/combo.
+4. On a fresh run, say “rook” and release: an unresolved result must leave the board
+   unchanged. Try a specific move again if time remains. Also test silence,
+   permission denial, release during setup, and a hold exceeding five seconds.
+5. Release outside the button; pointer capture should still commit once. Cancel a
+   hold by switching away; returning must not apply a late move. Test keyboard
+   Space/Enter hold/release, next puzzle and replay.
+6. Open Debug; inspect microphone/latency/proposal details and test typed,
+   coordinate and board fallbacks. Close it to restore the clean player view.
+
+The new ZIP is required; the Vercel API does not need redeployment for this pass.

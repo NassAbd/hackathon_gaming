@@ -1,3 +1,4 @@
+import { PushToTalk } from './ui/push-to-talk';
 import { microphoneDiagnostics } from './services/gradium/diagnostics';
 import { Chess } from 'chess.js';
 import type { Square } from 'chess.js';
@@ -13,16 +14,26 @@ import './style.css';
 
 const root = document.querySelector<HTMLDivElement>('#app');
 if (!root) throw new Error('Missing app root');
+const debug = new URLSearchParams(location.search).get('debug') === '1';
 root.innerHTML = `
-  <header><a class="brand" href="./">◉ SonicCheck<span>ARCADE CHESS</span></a><span class="mode">TYPED INTENT · GEMINI</span></header>
-  <main>
-    <section class="intro"><p class="eyebrow">THINK FAST. MAKE YOUR MOVE.</p><h1>Five seconds.<br> <em>One move.</em></h1><p>Find checkmate before the clock runs out.<br>Three puzzles. One perfect streak.</p></section>
-    <section class="game" aria-label="Chess puzzle game">
+  <header><a class="brand" href="./">◉ SonicCheck<span>VOICE CHESS · ENGLISH</span></a><span class="mode">ONE MOVE. FIVE SECONDS.</span><button id="debug-toggle" type="button" aria-expanded="false">Debug</button></header>
+  <main class="arena">
+    <section class="board-stage" aria-label="Chess puzzle">
+      <div class="puzzle-heading"><div><p class="eyebrow" id="progress"></p><h2 id="title"></h2></div><span class="side">White to move · Mate in one</span></div>
+      <div id="board" class="board" role="group" aria-label="Chessboard, white at bottom"></div>
+    </section>
+    <section class="play-panel" aria-label="Voice controls and results">
       <div class="stats"><div><span>SCORE</span><strong id="score">0</strong></div><div><span>COMBO</span><strong id="combo">×0</strong></div><div><span>TIME LEFT</span><strong id="timer" role="timer">5.0s</strong></div></div>
       <div class="time-track"><div id="time-bar"></div></div>
-      <div class="puzzle-heading"><div><p class="eyebrow" id="progress"></p><h2 id="title"></h2></div><span class="side">● White to move</span></div>
-      <div id="board" class="board" role="group" aria-label="Chessboard, white at bottom"></div>
-      <p id="feedback" role="status" aria-live="polite"></p>
+      <div class="player-feedback" aria-live="polite"><p class="eyebrow">FIND YOUR FINISH</p><h1 id="player-state">READY</h1><p id="feedback"></p></div>
+      <div class="heard"><span class="eyebrow">HEARD</span><p id="heard">Your words will appear here.</p></div>
+      <button id="talk" type="button" class="talk" aria-describedby="talk-help">HOLD TO SPEAK</button>
+      <p id="talk-help">Hold, describe your move, then release. Speak when LISTENING appears.</p>
+      <button id="action" class="primary" type="button">Next puzzle →</button>
+      <p class="partners">Voice by Gradium · Intent by Gemini · Rules by chess.js</p>
+    </section>
+  </main>
+  <section id="debug-panel" class="debug-panel" hidden aria-label="Development controls"><div class="debug-heading"><strong>Development controls</strong><button id="debug-close" type="button">Close</button></div>
       <div id="voice-controls" class="input-row"><button id="microphone" type="button">Enable microphone</button><button id="voice-send" type="button" disabled>Send speech</button><button id="voice-cancel" type="button" disabled>Cancel voice</button></div>
       <p id="voice-status" role="status" aria-live="polite">Enable before Start. Speak during the round, then Send speech before the deadline.</p>
       <section class="mic-diagnostics" aria-label="Microphone development diagnostics"><strong>Microphone diagnostics · development</strong><pre id="mic-diagnostics"></pre></section>
@@ -32,10 +43,7 @@ root.innerHTML = `
       <p id="intent-status" role="status" aria-live="polite">Gemini requires a server API key. Fallback controls work without it.</p>
       <details id="intent-inspection"><summary>Inspect interpretation</summary><pre id="intent-trace">No request yet.</pre></details>
       <form id="move-form"><label for="move">Type a move <span>(e.g. a1 a8)</span></label><div class="input-row"><input id="move" autocomplete="off" spellcheck="false" placeholder="from → to" aria-describedby="controls-help" /><button id="submit" type="submit">Move ↗</button></div></form>
-      <button id="action" class="primary" type="button">Start round →</button>
-    </section>
-    <aside><p class="eyebrow">HOW TO PLAY</p><h2>Spot it.<br> Send it.</h2><ol><li>Study the position, then start the clock.</li><li>Speak and Send speech, type and Resolve, or use the board and coordinate controls.</li><li>Deliver checkmate to build your combo.</li></ol><p id="controls-help">You have 5 seconds after Start. Illegal moves can be retried. A legal move that isn’t mate ends the round.</p><div class="dev-note"><strong>Voice input · Gradium</strong><p>Microphone audio is streamed to Gradium only while listening. Its transcript feeds Gemini; chess.js validates and executes the move. Typed input remains available. No TTS.</p></div></aside>
-  </main><footer>SONICCHECK <span>02 / TYPED INTENT SLICE</span></footer>`;
+<p id="controls-help">Debug: start the clock, then type or click a move. Fallbacks cancel voice.</p><button id="debug-start" class="primary" type="button">Start round</button></section>`;
 
 function element<T extends HTMLElement>(id: string): T {
   const found = document.getElementById(id);
@@ -53,15 +61,19 @@ let state = createGame();
 let selected: Square | null = null;
 let armedCapture: SpeechCapture | null = null;
 let microphoneSetup: AbortController | null = null;
+let playerError = '';
+let heard = '';
+let debugOpen = debug;
 const voiceSession = new VoiceSession({
   getState: () => state,
   setState: next => { state = next; selected = null; },
   now: () => performance.now(),
   resolve: requestIntent,
-  changed: () => render(),
+  changed: () => { if (state.phase === 'playing') playerError = 'Didn’t catch that — try again'; render(); },
   inspect: (message, transcript, timestamps, proposal) => {
     element('voice-status').textContent = message;
-    if (transcript) intentInput.value = transcript;
+    if (transcript) { intentInput.value = transcript; heard = transcript; }
+    if (timestamps.intentResolved !== null || (timestamps.speechCommitted !== null && !voiceSession.pending)) playerError = 'Didn’t catch that — try again';
     const duration = (start: number | null, end: number | null) => start === null || end === null ? null : end - start;
     element('voice-trace').textContent = JSON.stringify({
       transcript, proposal: proposal ?? null, timestamps,
@@ -78,8 +90,34 @@ const voiceSession = new VoiceSession({
     render();
   },
 });
+const talk = new PushToTalk({
+  allowed: () => ['ready', 'playing'].includes(state.phase) && !voiceSession.pending && !intentSession.pending && !microphoneSetup && !armedCapture,
+  prepare: signal => {
+    playerError = ''; heard = '';
+    return prepareMicrophone(signal, error => {
+      playerError = playerFailure(error);
+      if (!voiceSession.pending) cancelVoice('capture failure');
+      render();
+    });
+  },
+  start: capture => {
+    state = startRound(state, performance.now());
+    voiceSession.listen(capture);
+  },
+  commit: async () => { heard = microphoneDiagnostics.transcript || heard; await voiceSession.commit(); if (state.phase === 'playing') playerError = 'Didn’t catch that — try again'; },
+  cancel: () => cancelVoice('hold cancelled'),
+  changed: () => render(),
+  failed: error => { playerError = playerFailure(error); render(); },
+});
+function playerFailure(error: unknown): string {
+  const code = voiceFailure(error).code;
+  if (code === 'permission') return 'Allow microphone access, then hold again';
+  if (code === 'no_microphone') return 'Connect a microphone, then try again';
+  return 'Didn’t catch that — try again';
+}
 function cancelVoice(reason = 'fallback or user cancellation'): void {
   if (microphoneSetup || armedCapture || voiceSession.listening || voiceSession.pending) microphoneDiagnostics.event(`cancelVoice: ${reason}; phase=${state.phase}`);
+  talk.reset();
   microphoneSetup?.abort(); microphoneSetup = null;
   armedCapture?.cancel(); armedCapture = null;
   voiceSession.cancel();
@@ -99,7 +137,7 @@ function renderBoard(): void {
       button.className = `square ${(rowIndex + col) % 2 ? 'dark' : 'light'} ${piece?.color === 'w' ? 'white-piece' : 'black-piece'}`;
       button.classList.toggle('selected', square === selected);
       button.classList.toggle('last-move', state.lastMove?.from === square || state.lastMove?.to === square);
-      button.disabled = state.phase !== 'playing';
+      button.disabled = !debugOpen || state.phase !== 'playing';
       button.setAttribute('aria-pressed', String(square === selected));
       button.setAttribute('aria-label', `${square}${piece ? ` ${piece.color === 'w' ? 'white' : 'black'} ${names[piece.type]}` : ' empty'}`);
       const symbol = document.createElement('span');
@@ -141,10 +179,28 @@ function render(): void {
     element('intent-status').textContent = 'Interpretation cancelled: the round ended. No pending AI move will be applied.';
   }
   element('score').textContent = String(state.score).padStart(3, '0');
-  element('combo').textContent = `×${state.combo}`;
+  const nextCombo = `×${state.combo}`;
+  if (element('combo').textContent !== nextCombo && state.combo > 0 && !matchMedia('(prefers-reduced-motion: reduce)').matches) {
+    element('combo').animate?.([{ transform: 'scale(1.2)', color: '#d8f18a' }, { transform: 'scale(1)' }], { duration: 180 });
+  }
+  element('combo').textContent = nextCombo;
   element('progress').textContent = state.phase === 'complete' ? 'RUN COMPLETE' : `PUZZLE ${state.puzzleIndex + 1} / ${PUZZLES.length}`;
   element('title').textContent = state.phase === 'complete' ? `${state.solved} of ${PUZZLES.length} solved` : PUZZLES[state.puzzleIndex].title;
-  element('feedback').textContent = state.feedback;
+  const processing = voiceSession.pending || talk.phase === 'processing';
+  const status = state.phase === 'complete' ? 'RUN COMPLETE' : state.outcome === 'mate' ? 'CHECKMATE!' : state.outcome === 'miss' ? 'LEGAL MOVE — NOT MATE' : state.outcome === 'timeout' ? 'TIME’S UP' : talk.phase === 'preparing' ? 'GETTING READY…' : voiceSession.listening ? 'LISTENING…' : processing ? 'UNDERSTANDING…' : playerError || (state.phase === 'ready' ? 'READY' : 'HOLD TO SPEAK');
+  const previousStatus = element('player-state').textContent;
+  element('player-state').textContent = status;
+  root!.dataset.mood = state.outcome ?? (voiceSession.listening ? 'listening' : processing ? 'processing' : playerError ? 'retry' : 'ready');
+  if (previousStatus !== status) element('player-state').animate?.([{ opacity: 0.4, transform: 'translateY(5px)' }, { opacity: 1, transform: 'translateY(0)' }], { duration: matchMedia('(prefers-reduced-motion: reduce)').matches ? 0 : 160 });
+  element('feedback').textContent = state.phase === 'result' || state.phase === 'complete' ? state.feedback : talk.phase === 'preparing' ? 'Keep holding. Allow your microphone if asked.' : voiceSession.listening ? 'Describe your move. Release to send.' : processing ? 'Finding your move. Your time is saved.' : playerError ? 'Hold again while there’s time. Be specific about the destination.' : 'Find checkmate in one. No chess notation needed.';
+  element('heard').textContent = heard ? `“${heard}”` : 'Your words will appear here.';
+  const talkButton = element<HTMLButtonElement>('talk');
+  talkButton.disabled = state.phase === 'result' || state.phase === 'complete' || processing || intentSession.pending || microphoneSetup !== null || armedCapture !== null;
+  talkButton.textContent = talk.phase === 'preparing' ? 'KEEP HOLDING…' : voiceSession.listening ? 'RELEASE TO SEND' : processing ? 'UNDERSTANDING…' : 'HOLD TO SPEAK';
+  talkButton.setAttribute('aria-pressed', String(talk.phase === 'preparing' || talk.phase === 'listening'));
+  element('debug-panel').hidden = !debugOpen;
+  element('debug-toggle').setAttribute('aria-expanded', String(debugOpen));
+  element<HTMLButtonElement>('debug-start').disabled = state.phase !== 'ready' || microphoneSetup !== null;
   element('feedback').dataset.outcome = state.outcome ?? '';
   input.disabled = state.phase !== 'playing';
   element<HTMLButtonElement>('submit').disabled = state.phase !== 'playing';
@@ -155,11 +211,11 @@ function render(): void {
   element<HTMLButtonElement>('voice-send').disabled = !voiceSession.listening;
   element<HTMLButtonElement>('voice-cancel').disabled = !microphoneSetup && !armedCapture && !voiceSession.listening && !voiceSession.pending;
   action.disabled = microphoneSetup !== null;
-  action.hidden = state.phase === 'playing';
+  action.hidden = state.phase === 'playing' || state.phase === 'ready';
   action.textContent = state.phase === 'ready' ? 'Start round →' : state.phase === 'complete' ? 'Play again ↻' : state.puzzleIndex === PUZZLES.length - 1 ? 'See results →' : 'Next puzzle →';
   renderBoard();
   renderTimer();
-  if (state.phase !== 'playing') action.focus({ preventScroll: true });
+
 }
 
 element('microphone').addEventListener('click', async () => {
@@ -222,6 +278,7 @@ action.addEventListener('click', () => {
   intentSession.cancel();
   if (state.phase !== 'ready') cancelVoice();
   if (state.phase !== 'ready') {
+    playerError = ''; heard = '';
     intentInput.value = '';
     element('intent-status').textContent = 'Prepare a description, then start the round.';
     element('intent-trace').textContent = 'No request yet.';
@@ -237,6 +294,41 @@ action.addEventListener('click', () => {
   render();
   if (state.phase === 'playing') (intentInput.value.trim() ? element('resolve') : input).focus();
 });
+element('debug-start').addEventListener('click', () => action.click());
+element('debug-toggle').addEventListener('click', () => { debugOpen = !debugOpen; render(); });
+element('debug-close').addEventListener('click', () => { debugOpen = false; render(); });
+const talkButton = element<HTMLButtonElement>('talk');
+let pointer: number | null = null;
+let keyboardHeld = false;
+talkButton.addEventListener('pointerdown', event => {
+  if (event.button !== 0 || pointer !== null || keyboardHeld || talk.phase !== 'idle') return;
+  event.preventDefault(); pointer = event.pointerId;
+  talkButton.setPointerCapture(event.pointerId);
+  void talk.press();
+});
+talkButton.addEventListener('pointerup', event => {
+  if (pointer !== event.pointerId) return;
+  pointer = null; void talk.release();
+});
+function cancelHold(): void {
+  if (pointer === null && !keyboardHeld) return;
+  pointer = null; keyboardHeld = false; talk.cancel();
+}
+talkButton.addEventListener('pointercancel', cancelHold);
+talkButton.addEventListener('lostpointercapture', cancelHold);
+talkButton.addEventListener('keydown', event => {
+  if (![' ', 'Enter'].includes(event.key)) return;
+  event.preventDefault();
+  if (event.repeat || keyboardHeld || pointer !== null) return;
+  keyboardHeld = true; void talk.press();
+});
+talkButton.addEventListener('keyup', event => {
+  if (![' ', 'Enter'].includes(event.key) || !keyboardHeld) return;
+  event.preventDefault(); keyboardHeld = false; void talk.release();
+});
+talkButton.addEventListener('blur', () => { if (keyboardHeld) cancelHold(); });
+window.addEventListener('blur', cancelHold);
+document.addEventListener('visibilitychange', () => { if (document.hidden) cancelHold(); });
 setInterval(() => { element('mic-diagnostics').textContent = microphoneDiagnostics.display(); }, 250);
 element('mic-diagnostics').textContent = microphoneDiagnostics.display();
 setInterval(() => {
